@@ -287,28 +287,25 @@ else
     echo "🆕 A criar repositório ${REPO_NOME}..."
     gh repo create "${REPO_NOME}" \
         --public \
-        --description "${DESCRICAO}" \
-        --source . \
-        --remote origin \
-        --push 2>/dev/null || true
+        --description "${DESCRICAO}" 2>/dev/null || true
+    sleep 2
     echo -e "${GREEN}✅ Repositório criado${NC}"
 fi
 
-# ── Configurar remote se necessário ───────────────────────────
-if ! git remote get-url origin &> /dev/null; then
-    git remote add origin "https://github.com/${GITHUB_USER}/${REPO_NOME}.git"
-    echo -e "${GREEN}✅ Remote origin configurado${NC}"
-fi
-
-# ── Commit e push ──────────────────────────────────────────────
+# ── Configurar remote (sempre recriar para garantir URL correta) ──
 echo ""
-echo "📤 A fazer commit e push..."
+echo "🔗 A configurar remote origin..."
+git remote remove origin 2>/dev/null || true
+git remote add origin "https://github.com/${GITHUB_USER}/${REPO_NOME}.git"
+echo -e "${GREEN}✅ Remote: https://github.com/${GITHUB_USER}/${REPO_NOME}.git${NC}"
 
+# ── Commit ────────────────────────────────────────────────────
+echo ""
+echo "📤 A fazer commit..."
 git add -A
 
-# Verificar se há algo para fazer commit
-if git diff --cached --quiet; then
-    echo -e "${YELLOW}⚠️  Nada para fazer commit (repositório já atualizado)${NC}"
+if git diff --cached --quiet && git log --oneline -1 &>/dev/null; then
+    echo -e "${YELLOW}⚠️  Sem alterações para fazer commit${NC}"
 else
     git commit -m "🎙️ Assistente Virtual v${VERSAO}
 
@@ -317,11 +314,26 @@ else
 - Controlo de dispositivos IoT via MQTT (Tasmota)
 - Controlo de porta (POWER2)
 - Interface gráfica CustomTkinter com tema claro/escuro
-- Pesquisa na web por voz"
-
-    git push -u origin main 2>/dev/null || git push --force-with-lease origin main
-    echo -e "${GREEN}✅ Push efetuado${NC}"
+- Pesquisa na web por voz" 2>/dev/null || true
 fi
+
+# ── Push com token gh como fallback ──────────────────────────
+echo "⬆️  A fazer push..."
+GITHUB_TOKEN=$(gh auth token 2>/dev/null)
+if [ -n "$GITHUB_TOKEN" ]; then
+    git remote set-url origin "https://${GITHUB_TOKEN}@github.com/${GITHUB_USER}/${REPO_NOME}.git"
+fi
+
+if git push -u origin main 2>&1; then
+    echo -e "${GREEN}✅ Push efetuado${NC}"
+else
+    echo -e "${RED}❌ Push falhou. Verifica: gh auth status${NC}"
+    git remote set-url origin "https://github.com/${GITHUB_USER}/${REPO_NOME}.git"
+    exit 1
+fi
+
+# Repor URL sem token
+git remote set-url origin "https://github.com/${GITHUB_USER}/${REPO_NOME}.git" 
 
 # ── Criar Release com o .deb ───────────────────────────────────
 echo ""
