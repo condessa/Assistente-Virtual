@@ -1,0 +1,106 @@
+{
+    "musica": {
+        "tocar": {
+            "padroes": ["toca", "tocar", "quero ouvir", "quero escutar", "reproduz", "reproduzir", "ponha", "coloca"],
+            "parametro": true,
+            "descricao": "tocar <nome da música>"
+        },
+        "parar": {
+            "padroes": ["para", "parar", "stop", "pára"],
+            "parametro": false,
+            "descricao": "parar"
+        },
+        "pausar": {
+            "padroes": ["pausa", "pausar"],
+            "parametro": false,
+            "descricao": "pausar"
+        },
+        "retomar": {
+            "padroes": ["retomar", "continuar", "resumir", "continua"],
+            "parametro": false,
+            "descricao": "retomar"
+        },
+        "limpar": {
+            "padroes": ["limpar playlist", "limpa a playlist", "apagar musicas", "apagar músicas", "limpa playlist"],
+            "parametro": false,
+            "descricao": "limpar playlist"
+        },
+        "playlist": {
+            "padroes": ["mostrar playlist", "ver musicas", "ver músicas", "ver playlist", "abrir playlist"],
+            "parametro": false,
+            "descricao": "mostrar playlist"
+        },
+        "volume": {
+            "padroes": ["volume", "alterar volume", "muda volume", "definir volume"],
+            "parametro": true,
+            "descricao": "volume <0-100>"
+        }
+    },
+    "web": {
+        "youtube": {
+            "padroes": [
+                "abre no youtube", "abrir no youtube", "youtube", "ver no youtube",
+                "pesquisa no youtube", "procura no youtube", "busca no youtube"
+            ],
+            "parametro": true,
+            "descricao": "youtube <termo>"
+        },
+        "pesquisar": {
+            "padroes": [
+                "pesquisa na web", "pesquisar na web", "pesquisa por", "pesquisar por",
+                "procura por", "procurar por", "buscar por", "pesquisa", "pesquisar",
+                "procura", "procurar", "buscar", "google"
+            ],
+            "parametro": true,
+            "descricao": "pesquisar <termo>"
+        }
+    },
+    "dispositivos": {
+        "ligar": {
+            "padroes": [
+                "ligar", "liga", "acender", "acende", "liga o", "liga a",
+                "ligue", "liga luz", "liga a luz", "ativar", "turn on"
+            ],
+            "parametro": true,
+            "acao_mqtt": "ON",
+            "descricao": "ligar <dispositivo>"
+        },
+        "desligar": {
+            "padroes": [
+                "desligar", "desliga", "apagar", "apaga", "desliga o", "desliga a",
+                "desligue", "apaga a luz", "desativar", "turn off"
+            ],
+            "parametro": true,
+            "acao_mqtt": "OFF",
+            "descricao": "desligar <dispositivo>"
+        },
+        "alternar": {
+            "padroes": ["alternar", "toggle", "inverter", "mudar estado"],
+            "parametro": true,
+            "acao_mqtt": "TOGGLE",
+            "descricao": "alternar <dispositivo>"
+        },
+        "listar": {
+            "padroes": ["pesquisar dispositivos", "listar dispositivos", "ver dispositivos", "dispositivos ativos"],
+            "parametro": false,
+            "descricao": "listar dispositivos"
+        }
+    },
+    "utilitarios": {
+        "horas": {
+            "padroes": ["que horas sao", "que horas são", "horas", "hora atual", "que horas", "diz as horas"],
+            "parametro": false,
+            "descricao": "que horas são"
+        },
+        "data": {
+            "padroes": ["que dia e hoje", "que dia é hoje", "data", "data atual", "que dia"],
+            "parametro": false,
+            "descricao": "que dia é hoje"
+        },
+        "ajuda": {
+            "padroes": ["ajuda", "help", "comandos", "o que podes fazer", "o que sabes fazer"],
+            "parametro": false,
+            "descricao": "ajuda"
+        }
+    }
+}

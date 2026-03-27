@@ -1,0 +1,35 @@
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+venv/
+.venv/
+env/
+*.egg-info/
+
+# Configuração local (contém passwords MQTT)
+config.ini
+
+# Downloads de música
+Download/
+
+# Ficheiros temporários
+*.tmp
+*.log
+*.bak
+
+# Build
+build/
+dist/
+*.spec
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*~
+
+# Sistema
+.DS_Store
+Thumbs.db
