@@ -46,12 +46,15 @@ def init_mixer():
         time.sleep(0.1)
         pygame.mixer.pre_init(frequency=44100, size=-16, channels=2, buffer=4096)
         pygame.mixer.init()
+        # Garantir canais suficientes para TTS (canal 7) + música
+        pygame.mixer.set_num_channels(8)
         print(f"✅ Mixer inicializado - Frequência: {pygame.mixer.get_init()[0]} Hz")
         return True
     except Exception as e:
         print(f"⚠️ Erro no mixer: {e}")
         try:
             pygame.mixer.init()
+            pygame.mixer.set_num_channels(8)
             print("✅ Mixer inicializado (config padrão)")
             return True
         except:
@@ -74,7 +77,7 @@ class SelecaoMusicaDialog:
         self.dialog.title("Escolha uma versão")
         self.dialog.geometry("700x500")
         self.dialog.transient(parent)
-        self.dialog.grab_set()
+        # Sem grab_set() — evita bloquear a janela principal se ocorrer erro
         
         # Centralizar
         self.dialog.update_idletasks()
@@ -158,14 +161,24 @@ class SelecaoMusicaDialog:
         ctk.CTkButton(
             btn_frame,
             text="Cancelar",
-            command=self.dialog.destroy,
+            command=self._fechar,
             fg_color="#666666",
             width=100
         ).pack(side="right", padx=5)
         
+        # Fechar com X também liberta corretamente
+        self.dialog.protocol("WM_DELETE_WINDOW", self._fechar)
+        
         # Duplo clique toca
         self.listbox.bind("<Double-Button-1>", lambda e: self.tocar_selecionada())
     
+    def _fechar(self):
+        """Fecha o diálogo libertando recursos"""
+        try:
+            self.dialog.destroy()
+        except Exception:
+            pass
+
     def tocar_selecionada(self):
         """Toca a música selecionada"""
         selecao = self.listbox.curselection()
@@ -175,9 +188,10 @@ class SelecaoMusicaDialog:
         idx = selecao[0]
         if 0 <= idx < len(self.resultados):
             self.selecao = self.resultados[idx]
-            self.dialog.destroy()
+            selecao_copy = self.selecao
+            self._fechar()
             if self.callback:
-                self.callback(self.selecao)
+                self.callback(selecao_copy)
 
 
 class MusicPlayer:
@@ -189,11 +203,17 @@ class MusicPlayer:
         self.volume: float = 0.5
         self.pausado: bool = False
         self.gui = None  # Referência à GUI para mostrar diálogos
+        self._indice_atual: int = -1  # posição na playlist local
+        self._pos_segundos: float = 0.0   # posição atual em segundos
+        self._duracao: float = 0.0        # duração total em segundos
+        self._seek_pendente: Optional[float] = None  # seek pedido pelo slider
+        self.on_progress: Optional[Callable[[float, float], None]] = None  # (pos, dur)
         
         # Callbacks para a UI
         self.on_state_change: Optional[Callable[[bool], None]] = None
         self.on_download_progress: Optional[Callable[[Optional[float], Optional[float], Optional[float]], None]] = None
         self.on_download_status: Optional[Callable[[str], None]] = None
+        self.on_chat_message: Optional[Callable[[str], None]] = None  # mensagens para o chat
         
         # Configura volume inicial
         try:
@@ -453,6 +473,107 @@ class MusicPlayer:
         # Caso contrário, retorna None para mostrar diálogo
         return None
     
+    def tocar_url(self, url: str):
+        """
+        Descarrega e toca a partir de uma URL do YouTube diretamente.
+        Suporta vídeos individuais e playlists.
+        """
+        def _processar():
+            try:
+                if self.on_download_status:
+                    self.on_download_status(f"A obter informação da URL...")
+                if self.on_chat_message:
+                    self.on_chat_message(f"🔗 A processar URL...")
+
+                from yt_dlp import YoutubeDL
+
+                # Obter título sem fazer download
+                ydl_opts_info = {
+                    'quiet': True,
+                    'no_warnings': True,
+                    'skip_download': True,
+                    'extract_flat': False,
+                    'noplaylist': True,   # ignorar playlists, só o vídeo
+                    'no_color': True,
+                }
+                import urllib.parse as _up
+                parsed = _up.urlparse(url)
+                params = _up.parse_qs(parsed.query)
+                playlist_id = params.get('list', [None])[0]
+                video_id    = params.get('v',    [None])[0]
+
+                # Radio/mix playlists (RD, FL, LL, PL geradas) não são acessíveis
+                # Usar SEMPRE só o video_id se existir — evita que yt-dlp tente a playlist
+                if video_id:
+                    url_efetiva = f"https://www.youtube.com/watch?v={video_id}"
+                    playlist_id = None
+                elif playlist_id and not playlist_id.startswith('RD'):
+                    url_efetiva = f"https://www.youtube.com/playlist?list={playlist_id}"
+                else:
+                    url_efetiva = url
+                    playlist_id = None
+
+                with YoutubeDL(ydl_opts_info) as ydl:
+                    info = ydl.extract_info(url_efetiva, download=False)
+
+                # Se for playlist, pegar o primeiro entry
+                if info.get('_type') == 'playlist' or 'entries' in info:
+                    entries = list(info.get('entries', []))
+                    if entries:
+                        info = entries[0]
+
+                titulo = info.get('title', 'Audio')
+                artista = info.get('uploader', '')
+
+                # Verificar se já existe
+                caminho_existente = self._verificar_se_ja_existe(titulo, artista)
+                if caminho_existente:
+                    if self.on_chat_message:
+                        self.on_chat_message(f"📂 Já existe na playlist. A tocar...")
+                    self.tocar_arquivo(caminho_existente)
+                    return
+
+                # Construir nome do ficheiro
+                nome_base = titulo
+                nome_arquivo = self._normalizar_nome(nome_base)
+                caminho = os.path.join(DOWNLOAD_DIR, nome_arquivo)
+
+                if self.on_chat_message:
+                    self.on_chat_message(f"⬇️ A descarregar: {titulo}")
+                if self.on_download_status:
+                    self.on_download_status(f"A descarregar: {titulo}")
+
+                # Tentar URL original; se falhar e tiver playlist, tentar playlist
+                sucesso = self._baixar_url_yt(url_efetiva, caminho)
+                if not sucesso and playlist_id:
+                    pl_url = f"https://www.youtube.com/playlist?list={playlist_id}"
+                    if self.on_download_status:
+                        self.on_download_status(f"A tentar playlist...")
+                    sucesso = self._baixar_url_yt(pl_url, caminho)
+
+                if sucesso:
+                    if self.on_chat_message:
+                        self.on_chat_message(f"⬇️ Download concluído. A extrair faixas...")
+                    threading.Thread(
+                        target=self._extrair_e_tocar,
+                        args=(caminho, nome_base),
+                        daemon=True
+                    ).start()
+                else:
+                    if self.on_chat_message:
+                        self.on_chat_message("❌ Falha no download da URL.")
+                    if self.on_download_status:
+                        self.on_download_status("")
+
+            except Exception as e:
+                print(f"❌ Erro ao processar URL: {e}")
+                if self.on_chat_message:
+                    self.on_chat_message(f"❌ Erro ao processar URL: {e}")
+                if self.on_download_status:
+                    self.on_download_status("")
+
+        threading.Thread(target=_processar, daemon=True).start()
+
     def tocar_musica(self, termo: str):
         """
         Toca uma música pelo nome
@@ -469,6 +590,8 @@ class MusicPlayer:
                     print(f"📂 Música já existe na playlist")
                     if self.on_download_status:
                         self.on_download_status("Música encontrada localmente")
+                    if self.on_chat_message:
+                        self.on_chat_message(f"🎵 A tocar: {os.path.basename(caminho_existente)}")
                     time.sleep(0.3)
                     self.tocar_arquivo(caminho_existente)
                     return
@@ -533,16 +656,17 @@ class MusicPlayer:
         
         def callback(selecao):
             if selecao:
-                # Verificar novamente se já existe antes de fazer download
-                titulo = selecao['title']
-                artista = selecao.get('artist', '')
-                caminho_existente = self._verificar_se_ja_existe(titulo, artista)
-                
-                if caminho_existente:
-                    print(f"📂 Música já existe")
-                    self.tocar_arquivo(caminho_existente)
-                else:
-                    self._fazer_download(selecao, termo_original)
+                # Correr em thread para não bloquear a UI
+                def _processar():
+                    titulo = selecao['title']
+                    artista = selecao.get('artist', '')
+                    caminho_existente = self._verificar_se_ja_existe(titulo, artista)
+                    if caminho_existente:
+                        print(f"📂 Música já existe")
+                        self.tocar_arquivo(caminho_existente)
+                    else:
+                        self._fazer_download(selecao, termo_original)
+                threading.Thread(target=_processar, daemon=True).start()
         
         SelecaoMusicaDialog(self.gui, termo_original, resultados, callback)
     
@@ -572,6 +696,8 @@ class MusicPlayer:
         print(f"📥 A fazer download: {nome_base}")
         if self.on_download_status:
             self.on_download_status(f"A descarregar: {nome_base}")
+        if self.on_chat_message:
+            self.on_chat_message(f"⬇️ A descarregar: {nome_base}")
         
         # Fazer download do áudio
         url = resultado.get('url')
@@ -582,12 +708,141 @@ class MusicPlayer:
         
         if sucesso:
             print(f"✅ Download concluído: {nome_arquivo}")
-            time.sleep(0.3)
-            self.tocar_arquivo(caminho)
+            if self.on_chat_message:
+                self.on_chat_message(f"⬇️ Download concluído. A extrair faixas...")
+            if self.on_download_status:
+                self.on_download_status("A extrair faixas...")
+            # Tentar extração automática; se falhar, toca o ficheiro completo
+            threading.Thread(
+                target=self._extrair_e_tocar,
+                args=(caminho, nome_base),
+                daemon=True
+            ).start()
         else:
             if self.on_download_status:
                 self.on_download_status("❌ Falha no download")
+            if self.on_chat_message:
+                self.on_chat_message("❌ Falha no download. Tenta novamente.")
     
+    def _extrair_e_tocar(self, caminho: str, nome_base: str):
+        """
+        Após download: extrai faixas automaticamente com ffmpeg silencedetect.
+        Se a extração produzir faixas, toca a primeira.
+        Se falhar ou não encontrar silêncios, toca o ficheiro completo.
+        """
+        import re as _re
+        import subprocess as _sp
+
+        # Criar subpasta com título limpo
+        nome_limpo = _re.sub(r"[_\-]+", " ", os.path.splitext(os.path.basename(caminho))[0])
+        nome_limpo = " ".join(w.capitalize() for w in nome_limpo.split()).strip()
+        subpasta = os.path.join(DOWNLOAD_DIR, nome_limpo)
+        os.makedirs(subpasta, exist_ok=True)
+
+        print(f"✂️ A extrair faixas para: {subpasta}")
+
+        try:
+            # Detetar silêncios com ffmpeg
+            cmd = ["ffmpeg", "-hide_banner", "-i", caminho,
+                   "-af", "silencedetect=noise=-40dB:d=1.0",
+                   "-f", "null", "-"]
+            proc = _sp.run(cmd, capture_output=True, text=True)
+            saida = proc.stderr
+
+            # Parsear timestamps
+            import re as _re2
+            starts = [float(x) for x in _re2.findall(r"silence_start:\s*([\d.]+)", saida)]
+            ends   = [float(x) for x in _re2.findall(r"silence_end:\s*([\d.]+)", saida)]
+
+            # Obter duração total
+            dur_match = _re2.search(r"Duration:\s*(\d+):(\d+):([\d.]+)", saida)
+            if dur_match:
+                h, m, s = dur_match.groups()
+                total = int(h)*3600 + int(m)*60 + float(s)
+            else:
+                total = 0
+
+            # Construir lista de cortes (início/fim de cada faixa)
+            cortes = [0.0]
+            for e in ends:
+                cortes.append(e)
+            cortes.append(total if total > 0 else None)
+
+            faixas = []
+            for i in range(len(cortes) - 1):
+                t_ini = cortes[i]
+                t_fim = cortes[i + 1]
+                if t_fim is None:
+                    continue
+                duracao = t_fim - t_ini
+                if duracao >= 30:  # ignorar faixas < 30 segundos
+                    faixas.append((t_ini, t_fim))
+
+            if len(faixas) < 2:
+                # Não encontrou faixas suficientes — tocar ficheiro completo
+                print("⚠️ Sem silêncios detetados, a tocar ficheiro completo")
+                if self.on_chat_message:
+                    self.on_chat_message(f"🎵 A tocar: {nome_base}")
+                if self.on_download_status:
+                    self.on_download_status("")
+                time.sleep(0.3)
+                self.tocar_arquivo(caminho)
+                return
+
+            # Extrair cada faixa com ffmpeg
+            primeira = None
+            for i, (t_ini, t_fim) in enumerate(faixas, start=1):
+                nome_faixa = f"{i:02d} - Faixa {i:02d}.mp3"
+                destino = os.path.join(subpasta, nome_faixa)
+                cmd_ext = [
+                    "ffmpeg", "-y", "-hide_banner", "-loglevel", "error",
+                    "-ss", f"{t_ini:.3f}", "-to", f"{t_fim:.3f}",
+                    "-i", caminho, "-vn", "-c:a", "libmp3lame", "-q:a", "2",
+                    destino
+                ]
+                try:
+                    _sp.run(cmd_ext, check=True)
+                    if primeira is None:
+                        primeira = destino
+                    print(f"✅ Faixa {i}: {nome_faixa}")
+                except Exception as e:
+                    print(f"⚠️ Erro faixa {i}: {e}")
+
+            if primeira:
+                n = len(faixas)
+                print(f"✅ {n} faixas extraídas para {subpasta}")
+                if self.on_chat_message:
+                    self.on_chat_message(f"✅ {n} faixas extraídas. A tocar faixa 1...")
+                if self.on_download_status:
+                    self.on_download_status("")
+                # Notificar playlist_window da subpasta e abrir janela
+                try:
+                    from playlist_window import PlaylistWindow
+                    PlaylistWindow._subpasta_atual = subpasta
+                    if self.gui:
+                        self.gui.after(800, lambda: PlaylistWindow.mostrar_playlist(self, self.gui))
+                except Exception:
+                    pass
+                time.sleep(0.3)
+                self.tocar_arquivo(primeira)
+            else:
+                # Extração falhou — tocar ficheiro completo
+                if self.on_chat_message:
+                    self.on_chat_message(f"🎵 A tocar: {nome_base}")
+                if self.on_download_status:
+                    self.on_download_status("")
+                time.sleep(0.3)
+                self.tocar_arquivo(caminho)
+
+        except Exception as e:
+            print(f"⚠️ Extração falhou: {e} — a tocar ficheiro completo")
+            if self.on_chat_message:
+                self.on_chat_message(f"🎵 A tocar: {nome_base}")
+            if self.on_download_status:
+                self.on_download_status("")
+            time.sleep(0.3)
+            self.tocar_arquivo(caminho)
+
     def _baixar_url_yt(self, url: str, caminho_musica: str) -> bool:
         """Download a partir de URL do YouTube"""
         try:
@@ -611,6 +866,8 @@ class MusicPlayer:
                 'format': 'bestaudio/best',
                 'quiet': True,
                 'no_warnings': True,
+                'noplaylist': True,
+                'no_color': True,
                 'outtmpl': os.path.join(DOWNLOAD_DIR, '%(title)s.%(ext)s'),
                 'progress_hooks': [_hook],
                 'postprocessors': [{
@@ -620,7 +877,7 @@ class MusicPlayer:
                 }],
                 'keepvideo': False,
             }
-            
+
             with YoutubeDL(ydl_opts) as ydl:
                 ydl.download([url])
                 
@@ -740,19 +997,62 @@ class MusicPlayer:
                     self.tocando = True
                     self.pausado = False
                     self.musica_atual = caminho_musica
+                    # Atualizar índice na playlist
+                    playlist = self.get_playlist()
+                    nome = os.path.basename(caminho_musica)
+                    if nome in playlist:
+                        self._indice_atual = playlist.index(nome)
                     self._notify_state(True)
                     
-                    # Monitora quando a música termina
+                    # Obter duração com mutagen se disponível
+                    self._pos_segundos = 0.0
+                    self._duracao = 0.0
+                    try:
+                        from mutagen.mp3 import MP3
+                        audio = MP3(caminho_musica)
+                        self._duracao = audio.info.length
+                    except Exception:
+                        pass
+
+                    # Monitora progresso e fim da música
                     def monitorar():
+                        _inicio = time.time()
+                        _offset = 0.0  # offset após seek
                         while pygame.mixer.music.get_busy() and self.tocando and not self.pausado:
+                            # Verificar seek pendente
+                            if self._seek_pendente is not None:
+                                pos = self._seek_pendente
+                                self._seek_pendente = None
+                                try:
+                                    pygame.mixer.music.set_pos(pos)
+                                    _offset = pos
+                                    _inicio = time.time()
+                                except Exception:
+                                    pass
+                            # Calcular posição atual
+                            self._pos_segundos = _offset + (time.time() - _inicio)
+                            if self._duracao > 0:
+                                self._pos_segundos = min(self._pos_segundos, self._duracao)
+                            # Notificar GUI
+                            if self.on_progress:
+                                try:
+                                    self.on_progress(self._pos_segundos, self._duracao)
+                                except Exception:
+                                    pass
                             time.sleep(0.5)
                         if self.tocando and not self.pausado:
                             print("⏹️ Música terminou")
                             self.tocando = False
                             self.pausado = False
                             self.musica_atual = None
+                            self._pos_segundos = 0.0
+                            if self.on_progress:
+                                try:
+                                    self.on_progress(0.0, self._duracao)
+                                except Exception:
+                                    pass
                             self._notify_state(False)
-                    
+
                     threading.Thread(target=monitorar, daemon=True).start()
                     return True
                 else:

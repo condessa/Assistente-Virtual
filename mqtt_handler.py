@@ -123,96 +123,97 @@ def _on_connect(client, userdata, flags, rc):
 def _on_message(client, userdata, msg):
     """Callback quando recebe mensagem MQTT"""
     global _online_devices, _known_devices
-    
+
     topic = msg.topic
     payload = msg.payload.decode('utf-8', errors='ignore')
-    
-    print(f"[MQTT] {topic} -> {payload}")  # Debug
-    
+    retain = msg.retain  # 1 = mensagem retida (antiga), 0 = mensagem em tempo real
+
+    print(f"[MQTT] {'[RETAIN] ' if retain else ''}{topic} -> {payload}")
+
     # Extrair nome do dispositivo do tópico
     parts = topic.split('/')
-    if len(parts) >= 2:
-        device = parts[1]
-        
-        # Verificar se é um nome de dispositivo válido
-        if not _is_valid_device_name(device):
-            return
-        
-        # Adicionar aos conhecidos
-        _known_devices.add(device)
-        
-        # LWT - Last Will and Testament
-        if topic.endswith("/LWT"):
-            if payload == "Online":
-                _online_devices.add(device)
-                print(f"📱 Dispositivo ONLINE (LWT): {device}")
-            elif payload == "Offline":
-                _online_devices.discard(device)
-                print(f"📱 Dispositivo OFFLINE (LWT): {device}")
-        
-        # Resposta de POWER (dispositivo respondeu a um comando)
-        elif "POWER" in topic:
+    if len(parts) < 2:
+        return
+
+    device = parts[1]
+
+    if not _is_valid_device_name(device):
+        return
+
+    _known_devices.add(device)
+
+    # LWT — única fonte fiável de presença online/offline
+    # Aceitar mesmo retida: o broker publica LWT="Offline" quando o dispositivo cai
+    if topic.endswith("/LWT"):
+        if payload == "Online":
             _online_devices.add(device)
-            print(f"📱 Dispositivo respondeu: {device} = {payload}")
-            
-            # Detetar estado ON/OFF para atualizar a interface
-            if payload in ["ON", "OFF"]:
-                try:
-                    # Notificar a janela de dispositivos sobre a mudança de estado
-                    from devices_window import DevicesWindow
-                    DevicesWindow._atualizar_estado_dispositivo(device, payload)
-                except Exception as e:
-                    print(f"⚠️ Erro ao notificar estado: {e}")
-        
-        # Estado do dispositivo
-        elif topic.endswith("/STATE"):
-            _online_devices.add(device)
-            print(f"📊 Estado recebido de: {device}")
-            
-            # Tentar extrair estado POWER do JSON
+            print(f"📱 ONLINE (LWT): {device}")
+        elif payload == "Offline":
+            _online_devices.discard(device)
+            print(f"📴 OFFLINE (LWT): {device}")
+        # LWT não determina estado ON/OFF — apenas presença
+        for cb in _device_callbacks:
             try:
-                data = json.loads(payload)
-                if "POWER" in data:
-                    estado = data["POWER"]
-                    try:
-                        from devices_window import DevicesWindow
-                        DevicesWindow._atualizar_estado_dispositivo(device, estado)
-                    except:
-                        pass
-            except:
+                cb(list(_online_devices))
+            except Exception:
                 pass
-        
-        # Sensor data
-        elif topic.endswith("/SENSOR"):
-            _online_devices.add(device)
-            print(f"📊 Sensor data de: {device}")
-        
-        # RESULT (resposta a comandos)
-        elif topic.endswith("/RESULT"):
-            _online_devices.add(device)
-            print(f"📊 Resultado de: {device}")
-            
-            # Tentar extrair estado POWER do JSON
-            try:
-                data = json.loads(payload)
-                if "POWER" in data:
-                    estado = data["POWER"]
-                    try:
-                        from devices_window import DevicesWindow
-                        DevicesWindow._atualizar_estado_dispositivo(device, estado)
-                    except:
-                        pass
-            except:
-                pass
-        
-        # Qualquer outra mensagem - assume que está online
-        else:
-            _online_devices.add(device)
-    
-    # Notificar listeners sobre mudanças na lista de dispositivos
+        return
+
+    # Mensagens retidas de POWER/STATE/RESULT são ignoradas para estado ON/OFF
+    # (podem ser de sessões anteriores e não refletem o estado atual)
+    if retain:
+        print(f"[MQTT] Mensagem retida ignorada para estado: {topic}")
+        # Mesmo assim, se o dispositivo tinha LWT=Online, mantém-no na lista
+        return
+
+    # A partir daqui: apenas mensagens em tempo real
+
+    def _notificar_estado(dev, estado):
+        try:
+            from devices_window import DevicesWindow
+            DevicesWindow._atualizar_estado_dispositivo(dev, estado)
+        except Exception as e:
+            print(f"⚠️ Erro ao notificar estado: {e}")
+
+    # Resposta de POWER
+    if "POWER" in topic:
+        _online_devices.add(device)
+        print(f"📱 POWER: {device} = {payload}")
+        if payload in ["ON", "OFF"]:
+            _notificar_estado(device, payload)
+
+    # tele/+/STATE — estado completo periódico
+    elif topic.endswith("/STATE"):
+        _online_devices.add(device)
+        print(f"📊 STATE: {device}")
+        try:
+            data = json.loads(payload)
+            if "POWER" in data:
+                _notificar_estado(device, data["POWER"])
+        except Exception:
+            pass
+
+    # stat/+/RESULT — resposta a comandos
+    elif topic.endswith("/RESULT"):
+        _online_devices.add(device)
+        print(f"📊 RESULT: {device}")
+        try:
+            data = json.loads(payload)
+            if "POWER" in data:
+                _notificar_estado(device, data["POWER"])
+        except Exception:
+            pass
+
+    # Qualquer outra mensagem em tempo real — dispositivo está online
+    else:
+        _online_devices.add(device)
+
+    # Notificar listeners
     for cb in _device_callbacks:
         try:
             cb(list(_online_devices))
+        except Exception:
+            pass
         except Exception as e:
             print(f"Erro no callback: {e}")
 
@@ -419,8 +420,9 @@ def ensure_config_present(parent=None) -> bool:
 def _write_cfg(host: str, port: int, user: str, pwd: str) -> None:
     """Guarda configuração MQTT"""
     global _cfg_cache
+    # A pasta já é criada em constants.py, mas garantir por segurança
     os.makedirs(os.path.dirname(CONFIG_FILE), exist_ok=True)
-    
+
     cfg = configparser.ConfigParser()
     cfg["MQTT"] = {
         "host": host.strip(),

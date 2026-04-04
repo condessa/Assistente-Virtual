@@ -3,6 +3,7 @@ Janela de configuração MQTT
 """
 import configparser
 import customtkinter as ctk
+from tooltip import Tooltip
 
 
 def solicitar_configuracao(parent=None):
@@ -121,22 +122,26 @@ def solicitar_configuracao(parent=None):
     btn_frame = ctk.CTkFrame(win)
     btn_frame.pack(pady=10)
 
-    ctk.CTkButton(
-        btn_frame, 
-        text="Guardar", 
+    btn_guardar = ctk.CTkButton(
+        btn_frame,
+        text="Guardar",
         command=confirmar,
         font=font_in,
         width=120
-    ).pack(side="left", padx=5)
+    )
+    btn_guardar.pack(side="left", padx=5)
+    Tooltip(btn_guardar, "Guardar a configuração MQTT e ligar ao broker")
 
-    ctk.CTkButton(
-        btn_frame, 
-        text="Cancelar", 
+    btn_cancelar = ctk.CTkButton(
+        btn_frame,
+        text="Cancelar",
         command=win.destroy,
         fg_color="#666666",
         font=font_in,
         width=120
-    ).pack(side="left", padx=5)
+    )
+    btn_cancelar.pack(side="left", padx=5)
+    Tooltip(btn_cancelar, "Cancelar sem guardar alterações")
 
     win.grab_set()  # Modal
     win.wait_window()

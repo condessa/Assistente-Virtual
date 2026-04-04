@@ -4,58 +4,51 @@ Janela de ajuda com suporte a duplo clique para enviar comandos
 import tkinter as tk
 import tkinter.font as tkfont
 import customtkinter as ctk
+from tooltip import Tooltip
 
 
 def _colors_for_current_mode():
-    """Retorna cores conforme tema atual"""
     mode = ctk.get_appearance_mode()
     if mode == "Dark":
-        return {
-            "bg": "#2b2b2b",
-            "fg": "#ffffff",
-            "selectbg": "#1f6aa5",
-            "selectfg": "#ffffff",
-            "border": "#3a3a3a",
-        }
+        return {"bg": "#2b2b2b", "fg": "#ffffff",
+                "selectbg": "#1f6aa5", "selectfg": "#ffffff", "border": "#3a3a3a"}
     else:
-        return {
-            "bg": "#ffffff",
-            "fg": "#000000",
-            "selectbg": "#1f6aa5",
-            "selectfg": "#ffffff",
-            "border": "#cccccc",
-        }
+        return {"bg": "#ffffff", "fg": "#000000",
+                "selectbg": "#1f6aa5", "selectfg": "#ffffff", "border": "#cccccc"}
 
 
 def mostrar_ajuda(parent, commands=None):
     """Mostra janela de ajuda com lista de atalhos clicáveis"""
-    
+
     win = ctk.CTkToplevel(parent)
     win.title("Ajuda - Comandos Disponíveis")
-    win.geometry("760x520")
-    
+    win.geometry("660x420")
+
     try:
         if parent and hasattr(parent, 'iconbitmap'):
             win.iconbitmap(parent.iconbitmap())
     except Exception:
         pass
 
-    fonte = tkfont.Font(family="Segoe UI", size=14)
+    # ── Fontes reduzidas ────────────────────────────────────────────────────
+    fonte      = tkfont.Font(family="Segoe UI", size=9)
+    fonte_bold = ctk.CTkFont(size=10, weight="bold")
+    fonte_btn  = ctk.CTkFont(size=10)
+    fonte_chk  = ctk.CTkFont(size=10)
 
-    # Frame principal com duas colunas
+    # Frame principal
     cols = ctk.CTkFrame(win)
     cols.pack(padx=10, pady=10, fill="both", expand=True)
     cols.grid_columnconfigure(0, weight=1)
     cols.grid_columnconfigure(1, weight=1)
     cols.grid_rowconfigure(0, weight=1)
 
-    # Texto de ajuda (esquerda)
     texto = """📌 Comandos disponíveis
 
 💡 Dispositivos:
 • ligar <nome do dispositivo>
 • desligar <nome do dispositivo>
-• abrir <nome do dispositivo> (ex.: abrir porta)
+• abrir porta
 
 🔌 MQTT / Dispositivos:
 • pesquisar dispositivos   → abre janela com lista
@@ -80,47 +73,45 @@ def mostrar_ajuda(parent, commands=None):
 
     # Caixa de texto à esquerda
     tb = ctk.CTkTextbox(cols, wrap="word")
-    tb.grid(row=0, column=0, padx=(0,8), pady=(0,6), sticky="nsew")
+    tb.grid(row=0, column=0, padx=(0, 8), pady=(0, 6), sticky="nsew")
     tb.insert("1.0", texto)
     tb.configure(state="disabled")
     try:
         tb._textbox.configure(font=fonte)
-    except:
-        tb.configure(font=fonte)
+    except Exception:
+        pass
 
-    # Frame para atalhos (direita)
+    # Frame atalhos (direita)
     frame_list = ctk.CTkFrame(cols)
-    frame_list.grid(row=0, column=1, padx=(8,0), pady=(0,6), sticky="nsew")
+    frame_list.grid(row=0, column=1, padx=(8, 0), pady=(0, 6), sticky="nsew")
     frame_list.grid_rowconfigure(1, weight=1)
     frame_list.grid_columnconfigure(0, weight=1)
 
     ctk.CTkLabel(
-        frame_list, 
+        frame_list,
         text="Atalhos interativos (duplo clique)",
-        font=ctk.CTkFont(size=14, weight="bold")
-    ).grid(row=0, column=0, padx=8, pady=(8,0), sticky="w")
+        font=fonte_bold
+    ).grid(row=0, column=0, padx=8, pady=(8, 0), sticky="w")
 
-    # Lista de atalhos
     lista = tk.Listbox(frame_list, activestyle="dotbox")
     lista.grid(row=1, column=0, padx=8, pady=8, sticky="nsew")
     lista.config(font=fonte, height=14)
 
-    # Atalhos disponíveis
     atalhos = [
         ("🧭 Pesquisar dispositivos", "pesquisar dispositivos", True),
-        ("📜 Mostrar playlist", "mostrar playlist", True),
-        ("🧹 Limpar playlist", "limpar playlist", True),
-        ("⏸️ Pausar música", "pausar", True),
-        ("▶️ Continuar música", "retomar", True),
-        ("⏹️ Parar música", "parar", True),
-        ("🕒 Que horas são?", "que horas são", True),
-        ("📅 Que dia é hoje?", "que dia é hoje", True),
-        ("🎵 Tocar música…", "tocar ", False),  # Espaço no final para digitar
-        ("💡 Ligar dispositivo…", "ligar ", False),
-        ("💡 Desligar dispositivo…", "desligar ", False),
-        ("🚪 Abrir porta", "abrir porta", True),
-        ("▶️ Abre no YouTube…", "abre no youtube ", False),
-        ("🔎 Pesquisa na Web…", "pesquisa na web ", False),
+        ("📜 Mostrar playlist",        "mostrar playlist",       True),
+        ("🧹 Limpar playlist",         "limpar playlist",        True),
+        ("⏸️ Pausar música",           "pausar",                 True),
+        ("▶️ Continuar música",        "retomar",                True),
+        ("⏹️ Parar música",            "parar",                  True),
+        ("🕒 Que horas são?",          "que horas são",          True),
+        ("📅 Que dia é hoje?",         "que dia é hoje",         True),
+        ("🎵 Tocar música…",           "tocar ",                 False),
+        ("💡 Ligar dispositivo…",      "ligar ",                 False),
+        ("💡 Desligar dispositivo…",   "desligar ",              False),
+        ("🚪 Abrir porta",             "abrir porta",            True),
+        ("▶️ Abre no YouTube…",        "abre no youtube ",       False),
+        ("🔎 Pesquisa na Web…",        "pesquisa na web ",       False),
     ]
 
     idx_map = {}
@@ -128,28 +119,21 @@ def mostrar_ajuda(parent, commands=None):
         lista.insert(tk.END, label)
         idx_map[i] = (cmd, auto)
 
-    # Checkbox para envio automático
     auto_var = tk.BooleanVar(value=True)
     ctk.CTkCheckBox(
-        cols, 
-        text="Enviar automaticamente", 
-        variable=auto_var
-    ).grid(row=1, column=1, padx=(8,0), pady=(0,4), sticky="w")
+        cols,
+        text="Enviar automaticamente",
+        variable=auto_var,
+        font=fonte_chk
+    ).grid(row=1, column=1, padx=(8, 0), pady=(0, 4), sticky="w")
 
     def executar_selecionado():
-        """Função chamada ao clicar/duplo clique num atalho"""
         sel = lista.curselection()
         if not sel:
             return
-        
         cmd, auto_default = idx_map[sel[0]]
-        print(f"[DEBUG] Atalho clicado: '{cmd}', auto: {auto_default}")
-        
-        # Limpa o campo de entrada
         parent.entry_comando.delete(0, "end")
-        
         if auto_default:
-            # Comando completo (ex: "que horas são")
             parent.entry_comando.insert(0, cmd)
             if auto_var.get():
                 parent.enviar_comando()
@@ -157,41 +141,42 @@ def mostrar_ajuda(parent, commands=None):
                 parent.entry_comando.focus_set()
                 parent.entry_comando.icursor("end")
         else:
-            # Comando que precisa de complemento (ex: "tocar")
             parent.entry_comando.insert(0, cmd)
             parent.entry_comando.focus_set()
             parent.entry_comando.icursor("end")
 
-    # Bind do duplo clique
     lista.bind("<Double-Button-1>", lambda e: executar_selecionado())
 
-    # Botão executar
-    ctk.CTkButton(
-        cols, 
-        text="Executar selecionado", 
-        command=executar_selecionado
-    ).grid(row=2, column=1, padx=(8,0), pady=(0,8), sticky="w")
+    btn_exec = ctk.CTkButton(
+        cols, text="Executar selecionado",
+        command=executar_selecionado, font=fonte_btn
+    )
+    btn_exec.grid(row=2, column=1, padx=(8, 0), pady=(0, 8), sticky="w")
+    Tooltip(btn_exec, "Executar o atalho selecionado na lista")
 
-    # Botão fechar
-    ctk.CTkButton(
-        cols, 
-        text="Fechar", 
-        command=win.destroy
-    ).grid(row=2, column=0, pady=(0,8), sticky="e")
+    btn_fechar = ctk.CTkButton(
+        cols, text="Fechar",
+        command=win.destroy, font=fonte_btn
+    )
+    btn_fechar.grid(row=2, column=0, pady=(0, 8), sticky="e")
+    Tooltip(btn_fechar, "Fechar a janela de ajuda")
 
-    # Aplicar cores do tema
     colors = _colors_for_current_mode()
     lista.config(
-        bg=colors["bg"],
-        fg=colors["fg"],
+        bg=colors["bg"], fg=colors["fg"],
         selectbackground=colors["selectbg"],
         selectforeground=colors["selectfg"],
         highlightthickness=1,
         highlightbackground=colors["border"]
     )
 
-    # Centralizar a janela
     win.update_idletasks()
-    x = parent.winfo_x() + (parent.winfo_width() // 2) - (win.winfo_width() // 2)
-    y = parent.winfo_y() + (parent.winfo_height() // 2) - (win.winfo_height() // 2)
-    win.geometry(f"+{x}+{y}")
+    ww = win.winfo_width()
+    wh = win.winfo_height()
+    if parent:
+        px = parent.winfo_x() + (parent.winfo_width()  - ww) // 2
+        py = parent.winfo_y() + (parent.winfo_height() - wh) // 2
+    else:
+        px = (win.winfo_screenwidth()  - ww) // 2
+        py = (win.winfo_screenheight() - wh) // 2
+    win.geometry(f"+{px}+{py}")

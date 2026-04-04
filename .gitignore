@@ -1,35 +1,18 @@
-# Python
-__pycache__/
-*.py[cod]
-*.pyo
-*.pyd
 venv/
-.venv/
-env/
-*.egg-info/
-
-# Configuração local (contém passwords MQTT)
+__pycache__/
+*.pyc
+*.pyo
 config.ini
-
-# Downloads de música
 Download/
-
-# Ficheiros temporários
-*.tmp
 *.log
-*.bak
-
-# Build
-build/
-dist/
-*.spec
-
-# IDE
-.vscode/
-.idea/
-*.swp
-*~
-
-# Sistema
 .DS_Store
-Thumbs.db
+*.bak
+guiCerto.py
+guiMulti.py
+gui_v2.py
+gui1.py
+guiWin.py
+music_playerOriginal.py
+music_playerWin.py
+playlist_windowOriginal.py
+ffmpeg/

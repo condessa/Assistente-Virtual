@@ -11,6 +11,7 @@ from typing import Dict, Any, Optional, Callable
 from constants import COMMANDS_FILE
 from mqtt_handler import enviar_mqtt
 from playlist_window import PlaylistWindow
+from devices_window import DevicesWindow
 
 
 class CommandProcessor:
@@ -93,37 +94,49 @@ class CommandProcessor:
         """Processa um comando de texto e retorna a resposta"""
         if not comando:
             return "Diz-me o que queres fazer. 😉"
-        
+
         comando_original = comando
         comando_lower = comando.lower().strip()
-        
         print(f"[DEBUG] A processar: '{comando_lower}'")
+
+        # URL do YouTube enviada diretamente
+        if comando_lower.startswith("http://") or comando_lower.startswith("https://"):
+            url = comando.strip()
+            self.music_player.tocar_url(url)
+            return f"🔗 A carregar: {url[:60]}{'...' if len(url) > 60 else ''}"
         
         # Comandos específicos primeiro
-        if comando_lower in ["que horas são", "horas"]:
-            agora = datetime.datetime.now().strftime("%H:%M")
-            return f"🕒 Agora são {agora}."
-        
-        if comando_lower in ["que dia é hoje", "data"]:
+        if comando_lower in ["que horas são", "horas", "que horas", "diz as horas"]:
+            agora = datetime.datetime.now()
+            h = agora.hour
+            m = agora.minute
+            if m == 0:
+                texto_hora = f"{h} horas"
+            elif m == 1:
+                texto_hora = f"{h} horas e um minuto"
+            else:
+                texto_hora = f"{h} horas e {m} minutos"
+            return f"🕒 Agora são {texto_hora}."
+
+        if comando_lower in ["que dia é hoje", "data", "que dia", "data atual"]:
             hoje = datetime.datetime.now()
-            dias = ["segunda-feira", "terça-feira", "quarta-feira", "quinta-feira", 
+            dias = ["segunda-feira", "terça-feira", "quarta-feira", "quinta-feira",
                     "sexta-feira", "sábado", "domingo"]
+            meses = ["janeiro", "fevereiro", "março", "abril", "maio", "junho",
+                     "julho", "agosto", "setembro", "outubro", "novembro", "dezembro"]
             dia_semana = dias[hoje.weekday()]
-            data = hoje.strftime("%d/%m/%Y")
-            return f"📅 Hoje é {dia_semana}, {data}."
+            texto_data = f"{hoje.day} de {meses[hoje.month - 1]} de {hoje.year}"
+            return f"📅 Hoje é {dia_semana}, {texto_data}."
         
         # Comandos de música
-        if comando_lower.startswith("tocar ") or comando_lower.startswith("toca "):
-            if comando_lower.startswith("tocar "):
-                musica = comando[6:].strip()
-            else:
-                musica = comando[5:].strip()
-            
-            if musica:
-                self.music_player.tocar_musica(musica)
-                return f"🎵 A tocar: {musica}"
-            else:
-                return "⚠️ Indica o nome da música a tocar."
+        for _prefix in ["tocar ", "toca "]:
+            if comando_lower.startswith(_prefix):
+                musica = comando[len(_prefix):].strip()
+                if musica:
+                    self.music_player.tocar_musica(musica)
+                    return f"🔍 A verificar playlist para: {musica}"
+                else:
+                    return "⚠️ Indica o nome da música a tocar."
         
         if comando_lower in ["pausa", "pausar"]:
             resultado = self.music_player.pausar_musica()
@@ -136,12 +149,14 @@ class CommandProcessor:
         if comando_lower in ["para", "parar", "stop"]:
             resultado = self.music_player.parar_musica()
             return resultado if resultado else "⏹️ Música parada."
+
+
         
-        if comando_lower in ["limpar playlist", "limpa a playlist"]:
+        if comando_lower in ["limpar playlist", "limpa a playlist", "limpa playlist"]:
             resultado = self.music_player.limpar_playlist()
             return resultado if resultado else "🧹 Playlist limpa."
         
-        if comando_lower in ["mostrar playlist", "ver playlist"]:
+        if comando_lower in ["mostrar playlist", "ver playlist", "abrir playlist", "ver musicas", "ver músicas"]:
             if self.music_player:
                 PlaylistWindow.mostrar_playlist(self.music_player, self.gui)
                 return "📜 Playlist aberta."
@@ -149,37 +164,43 @@ class CommandProcessor:
                 return "❌ Player de música não disponível."
         
         # Volume
-        match = re.search(r'^volume\s+(\d{1,3})$', comando_lower)
+        match = re.search(r"^volume\s+(\d{1,3})$", comando_lower)
         if match:
             nivel = int(match.group(1))
             resultado = self.music_player.controlar_volume(nivel)
             return resultado if resultado else f"🔊 Volume ajustado para {nivel}%."
         
         # Web
-        if comando_lower.startswith("abre no youtube "):
-            termo = comando[16:].strip()
-            if termo:
-                url = f"https://www.youtube.com/results?search_query={quote_plus(termo)}"
-                webbrowser.open(url, new=2)
-                return f"▶️ A abrir YouTube: {termo}"
-            else:
-                return "⚠️ Diz-me o que queres ver no YouTube."
+        for _prefix in ["abre no youtube ", "abrir no youtube ", "youtube "]:
+            if comando_lower.startswith(_prefix):
+                termo = comando[len(_prefix):].strip()
+                if termo:
+                    url = f"https://www.youtube.com/results?search_query={quote_plus(termo)}"
+                    webbrowser.open(url, new=2)
+                    return f"▶️ A abrir YouTube: {termo}"
+                else:
+                    return "⚠️ Diz-me o que queres ver no YouTube."
         
-        if comando_lower.startswith("pesquisa na web "):
-            termo = comando[16:].strip()
-            if termo:
-                url = f"https://www.google.com/search?q={quote_plus(termo)}"
-                webbrowser.open(url, new=2)
-                return f"🌐 A pesquisar: {termo}"
-            else:
-                return "⚠️ Diz-me o que queres pesquisar."
+        for _prefix in ["pesquisa na web ", "pesquisar na web ", "pesquisa por ", "google "]:
+            if comando_lower.startswith(_prefix):
+                termo = comando[len(_prefix):].strip()
+                if termo:
+                    url = f"https://www.google.com/search?q={quote_plus(termo)}"
+                    webbrowser.open(url, new=2)
+                    return f"🌐 A pesquisar: {termo}"
+                else:
+                    return "⚠️ Diz-me o que queres pesquisar."
         
+        # Listar/pesquisar dispositivos
+        if comando_lower in ["pesquisar dispositivos", "listar dispositivos", "ver dispositivos", "dispositivos ativos", "dispositivos"]:
+            if self.gui:
+                self.gui.after(0, self.gui.mostrar_dispositivos)
+                return "📱 A abrir janela de dispositivos."
+            else:
+                return "❌ Interface não disponível."
+
         # Comandos de porta — padrão especial (só envia POWER2 ON)
-        padroes_porta = [
-            'abrir porta da rua', 'abrir a porta da rua', 'abre a porta da rua',
-            'abrir porta da sala', 'abrir a porta da sala', 'abre porta da sala',
-        ]
-        if comando_lower in padroes_porta:
+        if comando_lower in ["abrir porta", "abre porta", "abre a porta", "abrir a porta", "abre porta da sala", "abrir porta da sala", "abre a porta da sala"]:
             return self._abrir_porta()
 
         # Comandos de dispositivos - VERSÃO COM VALIDAÇÃO
@@ -257,7 +278,7 @@ class CommandProcessor:
                 self.gui.mostrar_ajuda()
                 return "📚 Janela de ajuda aberta."
             else:
-                return "📚 Comandos disponíveis: música, web, dispositivos, utilitários"
+                return "📚 Janela de ajuda aberta."
         
         return f"Desculpa, não entendi: '{comando_original}'"
     
@@ -267,7 +288,7 @@ class CommandProcessor:
         print(f"[DEBUG] MQTT: {topico} -> ON")
         sucesso = enviar_mqtt(topico, "ON")
         if sucesso:
-            return "🚪 A abrir a porta."
+            return "🚪 A porta foi aberta."
         else:
             return "❌ Erro ao abrir a porta. Verifica a configuração MQTT."
 
@@ -333,17 +354,27 @@ class CommandProcessor:
         else:
             topico = f"cmnd/{dispositivo_mqtt}/POWER"
         
+        # Verificar estado atual — evitar ligar algo já ligado
+        estado_atual = DevicesWindow._device_states.get(dispositivo_mqtt)
+        if estado_atual == "ON":
+            if any(p in dispositivo for p in ['luz', 'fluorescente', 'varanda']):
+                return f"💡 A luz {dispositivo} já está ligada."
+            elif any(p in dispositivo for p in ['ventilador', 'vento']):
+                return f"🌀 O ventilador já está ligado."
+            else:
+                return f"🔌 {dispositivo} já está ligado."
+
         print(f"[DEBUG] MQTT: {topico} -> ON")
         sucesso = enviar_mqtt(topico, "ON")
-        
+
         if sucesso:
-            # Escolher emoji apropriado
             if any(palavra in dispositivo for palavra in ['luz', 'fluorescente', 'varanda']):
-                return f"💡 A ligar {dispositivo}."
+                resposta = f"💡 {dispositivo} ligada."
             elif any(palavra in dispositivo for palavra in ['ventilador', 'vento']):
-                return f"🌀 A ligar {dispositivo}."
+                resposta = f"🌀 {dispositivo} ligado."
             else:
-                return f"🔌 A ligar {dispositivo}."
+                resposta = f"🔌 {dispositivo} ligado."
+            return resposta
         else:
             return f"❌ Erro ao ligar {dispositivo}. Verifica a configuração MQTT."
     
@@ -409,17 +440,27 @@ class CommandProcessor:
         else:
             topico = f"cmnd/{dispositivo_mqtt}/POWER"
         
+        # Verificar estado atual — evitar desligar algo já desligado
+        estado_atual = DevicesWindow._device_states.get(dispositivo_mqtt)
+        if estado_atual == "OFF":
+            if any(p in dispositivo for p in ['luz', 'fluorescente', 'varanda']):
+                return f"💡 A luz {dispositivo} já está desligada."
+            elif any(p in dispositivo for p in ['ventilador', 'vento']):
+                return f"🌀 O ventilador já está desligado."
+            else:
+                return f"🔌 {dispositivo} já está desligado."
+
         print(f"[DEBUG] MQTT: {topico} -> OFF")
         sucesso = enviar_mqtt(topico, "OFF")
-        
+
         if sucesso:
-            # Escolher emoji apropriado
             if any(palavra in dispositivo for palavra in ['luz', 'fluorescente', 'varanda']):
-                return f"💡 A desligar {dispositivo}."
+                resposta = f"💡 {dispositivo} desligada."
             elif any(palavra in dispositivo for palavra in ['ventilador', 'vento']):
-                return f"🌀 A desligar {dispositivo}."
+                resposta = f"🌀 {dispositivo} desligado."
             else:
-                return f"🔌 A desligar {dispositivo}."
+                resposta = f"🔌 {dispositivo} desligado."
+            return resposta
         else:
             return f"❌ Erro ao desligar {dispositivo}. Verifica a configuração MQTT."
     

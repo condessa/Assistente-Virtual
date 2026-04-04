@@ -59,6 +59,7 @@
         "ligar": {
             "padroes": [
                 "ligar", "liga", "acender", "acende", "liga o", "liga a",
+                "liga a luz", "acende a luz do", "acende a luz da",
                 "ligue", "liga luz", "liga a luz", "ativar", "turn on"
             ],
             "parametro": true,
@@ -68,7 +69,8 @@
         "desligar": {
             "padroes": [
                 "desligar", "desliga", "apagar", "apaga", "desliga o", "desliga a",
-                "desligue", "apaga a luz", "desativar", "turn off"
+                "desligue", "apaga a luz",  "apaga a luz do",  "apaga a luz da", 
+                "apagar a luz", "desativar", "turn off"
             ],
             "parametro": true,
             "acao_mqtt": "OFF",

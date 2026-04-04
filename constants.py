@@ -37,7 +37,13 @@ IMAGES_DIR = resource_path("imagens")
 FFMPEG_DIR = resource_path(os.path.join("ffmpeg", "bin"))
 
 # Ficheiros de configuração
-CONFIG_FILE = resource_path("config.ini")
+# config.ini fica em ~/.config/assistente-virtual/ para que o utilizador
+# tenha sempre permissão de leitura/escrita, independentemente de onde
+# o programa está instalado (/usr/share/... não é editável por utilizadores normais)
+_CONFIG_DIR = os.path.join(os.path.expanduser("~"), ".config", "assistente-virtual")
+os.makedirs(_CONFIG_DIR, exist_ok=True)
+CONFIG_FILE = os.path.join(_CONFIG_DIR, "config.ini")
+
 COMMANDS_FILE = resource_path("commands.json")
 
 # Garantir que diretórios existem
