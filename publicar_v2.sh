@@ -229,6 +229,13 @@ echo "🚀 A criar Release no GitHub..."
 
 gh release delete "v${VERSAO}" --yes 2>/dev/null || true
 
+# ── Verificar se o .deb existe ──────────────────────────────────
+DEB_FILE="$DIR_DIST/assistente-virtual_${VERSAO}_all.deb"
+if [ ! -f "$DEB_FILE" ]; then
+    echo -e "${YELLOW}⚠️  .deb não encontrado em dist/. A gerar...${NC}"
+    bash "$DIR/criar_deb_v2.sh"
+fi
+
 gh release create "v${VERSAO}" \
     --title "🎙️ Assistente Virtual v${VERSAO}" \
     --notes "## 🎨 Interface redesenhada — v${VERSAO}
@@ -242,13 +249,21 @@ gh release create "v${VERSAO}" \
 - Botão Enviar em destaque laranja
 - Tooltips em todos os controlos
 
-### 📥 Instalação
+### 📥 Instalação via .deb (recomendado)
+\`\`\`bash
+sudo dpkg -i assistente-virtual_${VERSAO}_all.deb
+sudo apt-get install -f
+assistente-virtual
+\`\`\`
+
+### 📥 Instalação a partir do código fonte
 \`\`\`bash
 git clone https://github.com/condessa/Assistente-Virtual.git
 cd Assistente-Virtual
 bash instalar_dependencias.sh
 python3 main.py
-\`\`\`"
+\`\`\`" \
+    "$DEB_FILE"
 
 echo -e "${GREEN}✅ Release v${VERSAO} publicada${NC}"
 
