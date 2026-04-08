@@ -52,7 +52,7 @@ class ChatbotGUI(ctk.CTk):
         self._tema_escuro = True
 
         # ── Janela ───────────────────────────────────────────────────────────
-        self.title("Assistente Virtual")
+        self.title("Assistente Virtual HCsoftware")
         self.geometry("1020x660")
         self.minsize(860, 540)
         self.configure(fg_color=DARK_BG)
@@ -96,6 +96,16 @@ class ChatbotGUI(ctk.CTk):
             0, lambda: self.exibir_mensagem("Chatbot", msg))
 
         self.slider_volume.configure(state="disabled")
+
+        # ── Centralizar janela no ecrã ──────────────────────────────────────
+        self.update_idletasks()
+        sw = self.winfo_screenwidth()
+        sh = self.winfo_screenheight()
+        w  = self.winfo_width()
+        h  = self.winfo_height()
+        x  = (sw - w) // 2
+        y  = (sh - h) // 2
+        self.geometry(f"{w}x{h}+{x}+{y}")
 
         # ── MQTT e boas-vindas ───────────────────────────────────────────────
         self.after(100, self._verificar_config_mqtt)
@@ -326,6 +336,7 @@ class ChatbotGUI(ctk.CTk):
             corner_radius=10,
             border_width=1,
             border_color=CARD_BORDER,
+            cursor="arrow",
         )
         self.txt_area.grid(row=0, column=0, padx=14, pady=(12, 6), sticky="nsew")
         self.txt_area.configure(state="disabled")
@@ -586,14 +597,77 @@ class ChatbotGUI(ctk.CTk):
     # ── Tema ─────────────────────────────────────────────────────────────────
     def toggle_tema(self):
         self._tema_escuro = not self._tema_escuro
+
         if self._tema_escuro:
             ctk.set_appearance_mode("dark")
-            self.configure(fg_color=DARK_BG)
+            bg        = "#1a2332"
+            darker    = "#141c28"
+            card      = "#1e2d40"
+            border    = "#243447"
+            sep       = "#2a3a52"
+            txt       = "#e8edf2"
+            txt_muted = "#8a9bb0"
+            hover_btn = "#2a3a52"
             self.btn_tema.configure(text="☀️  Tema claro")
         else:
             ctk.set_appearance_mode("light")
-            self.configure(fg_color="#f0f0f0")
+            bg        = "#f0f4f8"
+            darker    = "#dce3ec"
+            card      = "#ffffff"
+            border    = "#c8d4de"
+            sep       = "#d0dae6"
+            txt       = "#1a2332"
+            txt_muted = "#5a6a7a"
+            hover_btn = "#d0dae6"
             self.btn_tema.configure(text="🌙  Tema escuro")
+
+        # Re-colorir todos os frames/widgets com cores fixas
+        self.configure(fg_color=bg)
+
+        # Percorrer todos os widgets e actualizar os que têm fg_color definido
+        def _recolor(widget):
+            try:
+                c = str(widget.cget("fg_color"))
+                if c in ("#1a2332", "#f0f4f8"):
+                    widget.configure(fg_color=bg)
+                elif c in ("#141c28", "#dce3ec"):
+                    widget.configure(fg_color=darker)
+                elif c in ("#1e2d40", "#ffffff"):
+                    widget.configure(fg_color=card)
+                elif c in ("#243447", "#c8d4de"):
+                    widget.configure(fg_color=border)
+                elif c in ("#2a3a52", "#d0dae6"):
+                    widget.configure(fg_color=sep)
+                elif c == "transparent":
+                    pass  # manter transparente
+            except Exception:
+                pass
+            try:
+                c = str(widget.cget("hover_color"))
+                if c in ("#2a3a52", "#d0dae6"):
+                    widget.configure(hover_color=sep)
+                elif c in ("#3a4a62", "#c0cdd8"):
+                    widget.configure(hover_color="#3a4a62" if self._tema_escuro else "#c0cdd8")
+            except Exception:
+                pass
+            try:
+                c = str(widget.cget("text_color"))
+                if c in ("#e8edf2", "#1a2332"):
+                    widget.configure(text_color=txt)
+                elif c in ("#8a9bb0", "#5a6a7a"):
+                    widget.configure(text_color=txt_muted)
+            except Exception:
+                pass
+            try:
+                c = str(widget.cget("border_color"))
+                if c in ("#243447", "#c8d4de"):
+                    widget.configure(border_color=border)
+            except Exception:
+                pass
+            for child in widget.winfo_children():
+                _recolor(child)
+
+        _recolor(self)
 
     # ── Limpar chat ───────────────────────────────────────────────────────────
     def limpar_texto(self):

@@ -72,7 +72,8 @@ class PlaylistWindow:
             selectmode=tk.SINGLE,
             font=cls.font,
             height=15,
-            exportselection=False
+            exportselection=False,
+            cursor="arrow"
         )
         lb.pack(side="left", fill="both", expand=True)
 

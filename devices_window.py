@@ -124,7 +124,8 @@ class DevicesWindow:
             frame_lista,
             font=cls.font,
             wrap="none",
-            activate_scrollbars=True
+            activate_scrollbars=True,
+            cursor="arrow"
         )
         cls.textbox.pack(fill="both", expand=True)
 

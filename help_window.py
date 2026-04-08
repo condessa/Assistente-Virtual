@@ -72,7 +72,7 @@ def mostrar_ajuda(parent, commands=None):
 """
 
     # Caixa de texto à esquerda
-    tb = ctk.CTkTextbox(cols, wrap="word")
+    tb = ctk.CTkTextbox(cols, wrap="word", cursor="arrow")
     tb.grid(row=0, column=0, padx=(0, 8), pady=(0, 6), sticky="nsew")
     tb.insert("1.0", texto)
     tb.configure(state="disabled")
@@ -93,7 +93,7 @@ def mostrar_ajuda(parent, commands=None):
         font=fonte_bold
     ).grid(row=0, column=0, padx=8, pady=(8, 0), sticky="w")
 
-    lista = tk.Listbox(frame_list, activestyle="dotbox")
+    lista = tk.Listbox(frame_list, activestyle="dotbox", cursor="arrow")
     lista.grid(row=1, column=0, padx=8, pady=8, sticky="nsew")
     lista.config(font=fonte, height=14)
 
