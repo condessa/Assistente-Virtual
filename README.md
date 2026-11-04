@@ -30,6 +30,40 @@
 
 ---
 
+## 🪟 Windows (.exe)
+
+Descarrega o `AssistenteVirtual-2.1.0.exe` na página de
+[releases](https://github.com/condessa/Assistente-Virtual/releases) e faz duplo clique.
+Não precisa de instalar Python nem ffmpeg: vão lá dentro.
+
+O Windows vai avisar que o programa não é assinado — «Mais informações» →
+«Executar mesmo assim».
+
+No Windows os dados ficam em:
+
+```
+%APPDATA%\HCsoftware\AssistenteVirtual\config.ini     ← configuração MQTT
+%APPDATA%\HCsoftware\AssistenteVirtual\erro.log       ← só se algo falhar
+C:\Users\<nome>\Music\Assistente Virtual\             ← músicas descarregadas
+```
+
+### Compilar o .exe a partir do código
+
+Precisas de Python 3.12 e do [ffmpeg essentials](https://www.gyan.dev/ffmpeg/builds/)
+(`ffmpeg.exe` e `ffprobe.exe` em `ffmpeg\bin\`).
+
+```bat
+py -3.12 -m pip install -r requirements.txt pyinstaller
+py -3.12 -m PyInstaller assistente_virtual.spec --noconfirm --clean
+```
+
+ou simplesmente corre `build_windows.bat`. O resultado é `dist\AssistenteVirtual.exe`.
+
+O build também corre sozinho no GitHub: `.github/workflows/build-windows.yml`
+(a cada `push` para `main` e a cada etiqueta `v*`).
+
+---
+
 ## 📥 Instalação (Debian/Ubuntu)
 
 ```bash
