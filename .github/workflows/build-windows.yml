@@ -1,0 +1,85 @@
+name: Build Windows (.exe)
+
+on:
+  workflow_dispatch:
+    inputs:
+      versao:
+        description: "Versão a publicar (ex: 2.1.0). Deixa vazio para só gerar o exe."
+        required: false
+  push:
+    branches:
+      - main
+    tags:
+      - "v*"
+
+permissions:
+  contents: write
+
+jobs:
+  compilar:
+    runs-on: windows-latest
+
+    steps:
+      - name: Obter código
+        uses: actions/checkout@v4
+
+      - name: Instalar Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+          cache-dependency-path: requirements.txt
+
+      - name: Instalar dependências
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+          pip install pyinstaller
+
+      - name: Descarregar ffmpeg (build essentials)
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = "Stop"
+          $url = "https://www.gyan.dev/ffmpeg/builds/ffmpeg-release-essentials.zip"
+          Invoke-WebRequest -Uri $url -OutFile ffmpeg.zip
+          Expand-Archive -Path ffmpeg.zip -DestinationPath ffmpeg_tmp -Force
+          $ffmpeg = Get-ChildItem -Path ffmpeg_tmp -Recurse -Filter ffmpeg.exe | Select-Object -First 1
+          if (-not $ffmpeg) { throw "ffmpeg.exe não encontrado no zip" }
+          $bin = $ffmpeg.Directory.FullName
+          New-Item -ItemType Directory -Force -Path ffmpeg/bin | Out-Null
+          Copy-Item (Join-Path $bin "ffmpeg.exe")  ffmpeg/bin/ffmpeg.exe
+          Copy-Item (Join-Path $bin "ffprobe.exe") ffmpeg/bin/ffprobe.exe
+          Get-ChildItem ffmpeg/bin | Format-Table Name, Length
+
+      - name: Compilar com PyInstaller
+        run: python -m PyInstaller assistente_virtual.spec --noconfirm --clean
+
+      - name: Verificar o executável
+        shell: pwsh
+        run: |
+          $exe = "dist/AssistenteVirtual.exe"
+          if (-not (Test-Path $exe)) { throw "O PyInstaller não gerou $exe" }
+          $tamanho = [math]::Round((Get-Item $exe).Length / 1MB, 1)
+          Write-Host "✅ $exe — $tamanho MB"
+          if ($tamanho -lt 20) { throw "Executável demasiado pequeno ($tamanho MB) — build suspeito" }
+          "TAMANHO_MB=$tamanho" | Out-File -FilePath $env:GITHUB_ENV -Append
+
+      - name: Guardar o exe como artefacto
+        uses: actions/upload-artifact@v4
+        with:
+          name: AssistenteVirtual-windows
+          path: dist/AssistenteVirtual.exe
+          if-no-files-found: error
+          retention-days: 30
+
+      - name: Publicar na release (tags v*)
+        if: startsWith(github.ref, 'refs/tags/v')
+        uses: softprops/action-gh-release@v2
+        with:
+          name: Assistente Virtual ${{ github.ref_name }}
+          files: dist/AssistenteVirtual.exe
+          body: |
+            Instalador Windows (`.exe`) do Assistente Virtual.
+
+            Descarrega o ficheiro e faz duplo clique. O Windows vai avisar que não é assinado:
+            «Mais informações» → «Executar mesmo assim».

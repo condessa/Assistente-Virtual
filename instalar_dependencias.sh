@@ -51,6 +51,7 @@ DEPS=(
     "gTTS"
     "pydub"
     "pillow"
+    "tinytuya"
 )
 
 for dep in "${DEPS[@]}"; do

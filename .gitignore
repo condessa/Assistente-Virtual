@@ -16,3 +16,8 @@ music_playerOriginal.py
 music_playerWin.py
 playlist_windowOriginal.py
 ffmpeg/
+dist/
+build/
+tuya.txt
+dispositivos.json
+*.spec.bak

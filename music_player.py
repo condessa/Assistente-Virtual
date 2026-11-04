@@ -12,30 +12,35 @@ import tkinter as tk
 import customtkinter as ctk
 from difflib import SequenceMatcher
 
-from constants import DOWNLOAD_DIR, resource_path, FFMPEG_DIR
+from constants import (
+    DOWNLOAD_DIR, resource_path, FFMPEG_DIR,
+    FFMPEG_BIN, FFPROBE_BIN, IS_WINDOWS,
+)
 
 
 # Configurar ffmpeg local
 def _setup_ffmpeg():
-    """Configura o caminho do ffmpeg local"""
-    if FFMPEG_DIR and os.path.exists(FFMPEG_DIR):
-        ffmpeg = os.path.join(FFMPEG_DIR, "ffmpeg.exe")
-        ffprobe = os.path.join(FFMPEG_DIR, "ffprobe.exe")
-        
-        if os.path.exists(ffmpeg):
-            try:
-                from pydub import AudioSegment
-                AudioSegment.converter = ffmpeg
-                if os.path.exists(ffprobe):
-                    AudioSegment.ffprobe = ffprobe
-                print(f"✅ FFmpeg configurado: {ffmpeg}")
-            except ImportError:
-                pass
-            
-            # Adiciona ao PATH
-            os.environ["PATH"] = FFMPEG_DIR + os.pathsep + os.environ.get("PATH", "")
-            return True
-    return False
+    """Configura o caminho do ffmpeg (embutido no .exe ou instalado no sistema)"""
+    ffmpeg = FFMPEG_BIN
+    ffprobe = FFPROBE_BIN
+
+    if not ffmpeg or not os.path.exists(ffmpeg):
+        return False
+
+    try:
+        from pydub import AudioSegment
+        AudioSegment.converter = ffmpeg
+        if ffprobe and os.path.exists(ffprobe):
+            AudioSegment.ffprobe = ffprobe
+        print(f"✅ FFmpeg configurado: {ffmpeg}")
+    except ImportError:
+        pass
+
+    # Adiciona ao PATH — o yt-dlp e os subprocessos procuram "ffmpeg"/"ffprobe" lá
+    pasta = os.path.dirname(ffmpeg)
+    if pasta and pasta not in os.environ.get("PATH", ""):
+        os.environ["PATH"] = pasta + os.pathsep + os.environ.get("PATH", "")
+    return True
 
 
 # Inicializa mixer pygame
@@ -743,7 +748,7 @@ class MusicPlayer:
 
         try:
             # Detetar silêncios com ffmpeg
-            cmd = ["ffmpeg", "-hide_banner", "-i", caminho,
+            cmd = [FFMPEG_BIN, "-hide_banner", "-i", caminho,
                    "-af", "silencedetect=noise=-40dB:d=1.0",
                    "-f", "null", "-"]
             proc = _sp.run(cmd, capture_output=True, text=True)
@@ -795,7 +800,7 @@ class MusicPlayer:
                 nome_faixa = f"{i:02d} - Faixa {i:02d}.mp3"
                 destino = os.path.join(subpasta, nome_faixa)
                 cmd_ext = [
-                    "ffmpeg", "-y", "-hide_banner", "-loglevel", "error",
+                    FFMPEG_BIN, "-y", "-hide_banner", "-loglevel", "error",
                     "-ss", f"{t_ini:.3f}", "-to", f"{t_fim:.3f}",
                     "-i", caminho, "-vn", "-c:a", "libmp3lame", "-q:a", "2",
                     destino
@@ -878,33 +883,33 @@ class MusicPlayer:
                 'keepvideo': False,
             }
 
+            tempo_antes = time.time()
             with YoutubeDL(ydl_opts) as ydl:
                 ydl.download([url])
-                
-                # Encontrar o MP3 mais recente
-                time.sleep(1)
-                mp3_encontrado = None
-                tempo_atual = time.time()
-                for file in os.listdir(DOWNLOAD_DIR):
-                    if file.endswith('.mp3'):
-                        file_path = os.path.join(DOWNLOAD_DIR, file)
-                        if tempo_atual - os.path.getctime(file_path) < 120:
-                            mp3_encontrado = file_path
-                            break
-                
-                if mp3_encontrado:
-                    if mp3_encontrado != caminho_musica:
-                        if os.path.exists(caminho_musica):
-                            os.remove(caminho_musica)
-                        os.rename(mp3_encontrado, caminho_musica)
-                    return True
-            
-            return False
+
+                return self._mover_mp3_descarregado(tempo_antes, caminho_musica)
             
         except Exception as e:
             print(f"❌ Erro no download: {e}")
             return False
     
+    @staticmethod
+    def _mover_mp3_descarregado(tempo_antes: float, caminho_musica: str) -> bool:
+        """Espera (até 60 s) pelo MP3 criado após tempo_antes e move-o para caminho_musica."""
+        for tentativa in range(61):
+            if tentativa:
+                time.sleep(1)
+            for file in os.listdir(DOWNLOAD_DIR):
+                if file.endswith('.mp3'):
+                    file_path = os.path.join(DOWNLOAD_DIR, file)
+                    if os.path.getctime(file_path) >= tempo_antes:
+                        if file_path != caminho_musica:
+                            if os.path.exists(caminho_musica):
+                                os.remove(caminho_musica)
+                            os.rename(file_path, caminho_musica)
+                        return True
+        return False
+
     def _baixar_musica_yt(self, termo: str, caminho_musica: str) -> bool:
         """Download a partir de pesquisa"""
         try:
@@ -939,28 +944,11 @@ class MusicPlayer:
                 'keepvideo': False,
             }
             
+            tempo_antes = time.time()
             with YoutubeDL(ydl_opts) as ydl:
                 ydl.download([f"ytsearch:{termo}"])
-                
-                # Encontrar o MP3 mais recente
-                time.sleep(1)
-                mp3_encontrado = None
-                tempo_atual = time.time()
-                for file in os.listdir(DOWNLOAD_DIR):
-                    if file.endswith('.mp3'):
-                        file_path = os.path.join(DOWNLOAD_DIR, file)
-                        if tempo_atual - os.path.getctime(file_path) < 120:
-                            mp3_encontrado = file_path
-                            break
-                
-                if mp3_encontrado:
-                    if mp3_encontrado != caminho_musica:
-                        if os.path.exists(caminho_musica):
-                            os.remove(caminho_musica)
-                        os.rename(mp3_encontrado, caminho_musica)
-                    return True
-            
-            return False
+
+                return self._mover_mp3_descarregado(tempo_antes, caminho_musica)
             
         except Exception as e:
             print(f"❌ Erro no download: {e}")

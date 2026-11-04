@@ -1,6 +1,7 @@
 """
 Reconhecimento de voz usando SpeechRecognition - VERSÃO SEM FEEDBACK
 """
+import os
 import speech_recognition as sr
 import threading
 import time
@@ -9,8 +10,9 @@ _STOP = False
 _LISTENING = False
 _ACTIVE = False
 
-# Usar microfone PulseAudio
-MICROFONE_INDEX = 3
+# Linux: usa o índice 0 (PulseAudio).
+# Windows: None = dispositivo de entrada predefinido do sistema.
+MICROFONE_INDEX = None if os.name == "nt" else 0
 THRESHOLD = 1500
 
 def stop_voice():
@@ -82,5 +84,6 @@ def testar_microfone():
             texto = r.recognize_google(audio, language='pt-PT')
             print(f"✅ '{texto}'")
             return 'teste' in texto.lower()
-    except:
+    except Exception as e:
+        print(f"[ERRO] testar_microfone: {e}")
         return False

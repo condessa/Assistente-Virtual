@@ -1,13 +1,29 @@
 #!/bin/bash
 # ═══════════════════════════════════════════════════════════════
-# 📦 Criar pacote .deb — Assistente Virtual v2.0.0
+# 📦 Criar pacote .deb — Assistente Virtual v2.0.2
 # HCsoftware — Herculano
 # ═══════════════════════════════════════════════════════════════
+#
+# Alterações na 2.0.2:
+#  - limpeza interna do código (sem alterações de funcionalidade):
+#    comandos ligar/desligar/alternar unificados, helpers MQTT partilhados,
+#    cores da interface em constantes, imagens carregadas uma só vez,
+#    espera pelo MP3 partilhada entre os dois modos de download
+#
+# Alterações na 2.0.1:
+#  - yt-dlp instalado sempre na versão mais recente, com yt-dlp-ejs ([default])
+#  - erro na instalação do yt-dlp pára o build (antes era engolido por "|| true")
+#  - launcher garante o deno no PATH (o lançador gráfico não herda o PATH do terminal)
+#  - launcher usa o yt-dlp do utilizador se existir (atualizável sem sudo)
+#  - novo comando: assistente-virtual-atualizar
+#  - removido o bloco do "link simbólico" que nunca funcionou; as músicas ficam em
+#    ~/.local/share/assistente-virtual/Download (definido no constants.py)
+#  - postinst já não cria pastas em /root e avisa se o deno não estiver instalado
 
 set -e
 
 NOME="assistente-virtual"
-VERSAO="2.0.0"
+VERSAO="2.0.2"
 ARCH="all"
 MAINTAINER="HCsoftware <herculano@hcsoftware.pt>"
 DESCRICAO="Assistente Virtual HCsoftware — Controlo por voz, música e IoT"
@@ -57,7 +73,6 @@ mkdir -p "$DESKTOP_DIR"
 mkdir -p "$ICON_DIR"
 mkdir -p "$DOC_DIR"
 mkdir -p "$DEBIAN_DIR"
-mkdir -p "$INSTALL_DIR/Download"
 mkdir -p "$INSTALL_DIR/imagens"
 
 echo -e "${GREEN}✅ Estrutura criada${NC}"
@@ -83,6 +98,9 @@ FICHEIROS_PY=(
     "constants.py"
     "tooltip.py"
     "commands.json"
+    "ollama_client.py"
+    "tuya_client.py"
+    "dispositivos.json"
 )
 
 for f in "${FICHEIROS_PY[@]}"; do
@@ -114,19 +132,27 @@ echo "📦 A instalar dependências Python no pacote..."
 DEPS_DIR="$INSTALL_DIR/deps"
 mkdir -p "$DEPS_DIR"
 
+# Dependências gerais (falhas aqui não param o build, como antes)
 pip3 install --quiet --target="$DEPS_DIR" \
     customtkinter \
     pygame \
-    yt-dlp \
     paho-mqtt \
     SpeechRecognition \
     gTTS \
     pydub \
     pillow \
     mutagen \
-    pyaudio 2>/dev/null || true
+    pyaudio \
+    tinytuya 2>/dev/null || true
 
-echo -e "${GREEN}✅ Dependências instaladas${NC}"
+# yt-dlp: sempre a versão mais recente, com yt-dlp-ejs ([default]).
+# SEM "|| true": se falhar, o build pára em vez de gerar um pacote que não descarrega.
+# (--target dispensa --break-system-packages; se o pip se queixar, acrescenta a flag.)
+echo "  ⬇️  yt-dlp (última versão)..."
+pip3 install --quiet --upgrade --target="$DEPS_DIR" "yt-dlp[default]"
+
+YTDLP_VER=$(PYTHONPATH="$DEPS_DIR" python3 -c "import yt_dlp; print(yt_dlp.version.__version__)")
+echo -e "${GREEN}✅ Dependências instaladas (yt-dlp ${YTDLP_VER})${NC}"
 
 # ── Criar wrapper de lançamento ──────────────────────────────────
 echo ""
@@ -136,20 +162,23 @@ cat > "$BIN_DIR/assistente-virtual" << 'LAUNCHER'
 #!/bin/bash
 # Launcher do Assistente Virtual HCsoftware
 INSTALL_DIR="/usr/share/assistente-virtual"
-PYTHONPATH="$INSTALL_DIR/deps:$INSTALL_DIR"
+USER_DATA="$HOME/.local/share/assistente-virtual"
 
-# Criar pasta Download do utilizador se não existir
-mkdir -p "$HOME/.local/share/assistente-virtual/Download"
+# O lançador gráfico não herda o PATH do terminal: garantir o deno,
+# que o yt-dlp precisa para resolver os desafios JavaScript do YouTube.
+export PATH="$HOME/.deno/bin:/usr/local/bin:$PATH"
 
-# Link simbólico para a pasta Download do utilizador
-if [ ! -L "$INSTALL_DIR/Download" ]; then
-    rm -rf "$INSTALL_DIR/Download" 2>/dev/null || true
-fi
+# Pasta de músicas do utilizador (é a que o constants.py usa)
+mkdir -p "$USER_DATA/Download"
 
 exec python3 -c "
 import sys, os
 sys.path.insert(0, '$INSTALL_DIR/deps')
 sys.path.insert(0, '$INSTALL_DIR')
+# yt-dlp do utilizador (atualizável sem sudo) tem prioridade sobre o do pacote
+ytdlp = os.path.expanduser('~/.local/share/assistente-virtual/ytdlp')
+if os.path.isdir(ytdlp):
+    sys.path.insert(0, ytdlp)
 os.chdir('$INSTALL_DIR')
 import main
 main.main()
@@ -157,7 +186,21 @@ main.main()
 LAUNCHER
 
 chmod +x "$BIN_DIR/assistente-virtual"
-echo -e "${GREEN}✅ Launcher criado${NC}"
+
+# ── Comando para atualizar o yt-dlp sem sudo ─────────────────────
+cat > "$BIN_DIR/assistente-virtual-atualizar" << 'UPDATER'
+#!/bin/bash
+# Atualiza o yt-dlp do Assistente Virtual (sem sudo).
+# Usar quando aparecer "Falha no download" sem motivo aparente.
+DEST="$HOME/.local/share/assistente-virtual/ytdlp"
+mkdir -p "$DEST"
+python3 -m pip install --upgrade --target "$DEST" "yt-dlp[default]" || exit 1
+python3 -c "import sys; sys.path.insert(0, '$DEST'); import yt_dlp; print('yt-dlp', yt_dlp.version.__version__)"
+echo "Fecha o Assistente Virtual por completo e abre-o de novo."
+UPDATER
+
+chmod +x "$BIN_DIR/assistente-virtual-atualizar"
+echo -e "${GREEN}✅ Launcher e atualizador criados${NC}"
 
 # ── Ficheiro .desktop ────────────────────────────────────────────
 echo ""
@@ -213,13 +256,11 @@ Description: ${DESCRICAO}
 CONTROL
 
 # ── DEBIAN/postinst ──────────────────────────────────────────────
+# (corre como root: não cria pastas do utilizador; a pasta de configuração
+#  e a de músicas são criadas pelo próprio programa/launcher, na conta de cada utilizador)
 cat > "$DEBIAN_DIR/postinst" << 'POSTINST'
 #!/bin/bash
 set -e
-
-# Criar pasta de configuração do utilizador
-CONFIG_DIR="$HOME/.config/assistente-virtual"
-mkdir -p "$CONFIG_DIR"
 
 # Actualizar cache de ícones e menu
 if command -v update-desktop-database &>/dev/null; then
@@ -229,9 +270,18 @@ if command -v gtk-update-icon-cache &>/dev/null; then
     gtk-update-icon-cache /usr/share/pixmaps/ 2>/dev/null || true
 fi
 
-echo "✅ Assistente Virtual v2.0.0 instalado com sucesso!"
+echo "✅ Assistente Virtual instalado com sucesso!"
 echo "   Para iniciar: assistente-virtual"
 echo "   Ou procura em: Aplicações → Utilitários"
+
+if ! command -v deno &>/dev/null; then
+    echo ""
+    echo "⚠️  Nota: o deno é necessário para descarregar música do YouTube."
+    echo "   Se ainda não o tens, instala-o com o teu utilizador (sem sudo):"
+    echo "   curl -fsSL https://deno.land/install.sh | sh"
+fi
+echo ""
+echo "   Se aparecer 'Falha no download', corre: assistente-virtual-atualizar"
 POSTINST
 chmod +x "$DEBIAN_DIR/postinst"
 
@@ -254,7 +304,12 @@ echo ""
 echo "🔒 A definir permissões..."
 find "$DIR_BUILD" -type d -exec chmod 755 {} \;
 find "$DIR_BUILD" -type f -exec chmod 644 {} \;
+
+# Restaurar permissão de execução nos binários internos do speech_recognition
+# (o chmod 644 acima retira-a, e o SpeechRecognition precisa de os executar)
+find "$DIR_BUILD" -path "*/speech_recognition/*" -type f \( -name "flac-*" -o -name "*.exe" \) -exec chmod 755 {} \;
 chmod 755 "$BIN_DIR/assistente-virtual"
+chmod 755 "$BIN_DIR/assistente-virtual-atualizar"
 chmod 755 "$DEBIAN_DIR/postinst"
 chmod 755 "$DEBIAN_DIR/prerm"
 echo -e "${GREEN}✅ Permissões definidas${NC}"
@@ -276,6 +331,7 @@ echo -e "${GREEN}  ✅ Pacote .deb criado com sucesso!${NC}"
 echo "═══════════════════════════════════════════════"
 echo "  📦 Ficheiro : $DEB_FILE"
 echo "  📏 Tamanho  : $TAMANHO"
+echo "  ⬇️  yt-dlp   : $YTDLP_VER"
 echo ""
 echo "  Para instalar:"
 echo "  sudo dpkg -i $DEB_FILE"
@@ -283,5 +339,8 @@ echo "  sudo apt-get install -f"
 echo ""
 echo "  Para iniciar após instalação:"
 echo "  assistente-virtual"
+echo ""
+echo "  Se aparecer 'Falha no download':"
+echo "  assistente-virtual-atualizar"
 echo "═══════════════════════════════════════════════"
 echo ""

@@ -1,0 +1,18 @@
+[project]
+name = "assistente-virtual"
+version = "0.1.0"
+description = "Add your description here"
+readme = "README.md"
+requires-python = ">=3.13"
+dependencies = [
+    "customtkinter>=5.2.0",
+    "gtts>=2.3.2",
+    "mutagen>=1.47.0",
+    "paho-mqtt>=1.6.1",
+    "pillow>=10.0.0",
+    "pyaudio>=0.2.13",
+    "pydub>=0.25.1",
+    "pygame>=2.5.0",
+    "requests>=2.31.0",
+    "speechrecognition>=3.10.0",
+]

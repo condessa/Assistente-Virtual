@@ -5,6 +5,8 @@ Estilo: AluminioManager — sidebar escura, cabeçalho laranja HCsoftware
 import os
 import threading
 import time
+from functools import lru_cache
+import tkinter as tk
 import customtkinter as ctk
 from tkinter import font as tkfont
 
@@ -20,24 +22,69 @@ from constants import IMAGES_DIR
 from tooltip import Tooltip
 
 
-# ── Paleta de cores (espelha o AluminioManager) ─────────────────────────────
-DARK_BG      = "#1a2332"   # sidebar / fundo principal
-DARKER_BG    = "#141c28"   # barra lateral mais escura
-ORANGE       = "#d4560a"   # laranja primário (botões principais, cabeçalho)
-ORANGE_HOVER = "#c04a08"
-ORANGE_LIGHT = "#FF8C00"   # laranja secundário
-CARD_BG      = "#1e2d40"   # fundo dos cards/painéis
-CARD_BORDER  = "#243447"
-TEXT_PRIMARY = "#e8edf2"
-TEXT_MUTED   = "#8a9bb0"
-TEXT_ACCENT  = "#d4560a"
-GREEN        = "#2e7d32"
-GREEN_LIGHT  = "#43a047"
-RED          = "#b71c1c"
-RED_LIGHT    = "#e53935"
-BLUE         = "#1f6aa5"
-AMBER        = "#f57c00"
-SEPARATOR    = "#2a3a52"
+# ── Tema HCsoftware para customtkinter ──────────────────────────────────────
+_hc_theme_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "hc_theme.json")
+if os.path.exists(_hc_theme_path):
+    ctk.set_default_color_theme(_hc_theme_path)
+else:
+    ctk.set_default_color_theme("dark-blue")
+
+
+# ── Paleta de cores HCsoftware oficial ──────────────────────────────────────
+DARK_BG      = "#2b2b2b"   # BG_MAIN    — fundo principal
+DARKER_BG    = "#1a1a1a"   # BG_SIDEBAR — sidebar lateral (AluminioManager dark)
+ORANGE       = "#4a90d9"   # ACCENT     — cor de destaque (botões principais)
+ORANGE_HOVER = "#5ba3f0"   # ACCENT_HOV
+ORANGE_LIGHT = "#5bc0de"   # INFO       — destaque secundário
+CARD_BG      = "#3c3c3c"   # BG_PANEL   — fundo dos cards/painéis
+CARD_BORDER  = "#555555"   # BORDER
+TEXT_PRIMARY = "#e8e8e8"   # TEXT_PRI
+TEXT_MUTED   = "#a0a0a0"   # TEXT_SEC
+TEXT_ACCENT  = "#4a90d9"   # ACCENT
+GREEN        = "#5cb85c"   # SUCCESS
+GREEN_LIGHT  = "#00ff7f"   # GREEN
+RED          = "#d9534f"   # DANGER
+RED_LIGHT    = "#ff4444"   # RED
+BLUE         = "#357abd"   # ACCENT_DRK
+AMBER        = "#f0ad4e"   # WARNING
+SEPARATOR    = "#404040"   # DIVIDER
+AZUL_CLARO   = "#23B9EB"   # Azul para o Titulo
+# ── Cores sidebar estilo AluminioManager ─────────────────────────────────────
+SIDEBAR_ACTIVE_BG  = "#e07b20"   # Laranja — item seleccionado
+SIDEBAR_ACTIVE_HOV = "#f08c30"   # Laranja claro — hover sobre activo
+SIDEBAR_ITEM_HOV   = "#252525"   # Hover sobre item inactivo
+SIDEBAR_ITEM_FG    = "#c0c0c0"   # Texto inactivo
+SIDEBAR_ACTIVE_FG  = "#ffffff"   # Texto activo
+SIDEBAR_DIVIDER    = "#111111"   # Linha divisória entre secções
+SIDEBAR_FONT        = ("Segoe UI", 10)
+SIDEBAR_FONT_ACTIVE = ("Segoe UI", 10, "bold")
+
+# ── Paletas para alternar tema (escuro / claro) ─────────────────────────────
+# Papéis usados por toggle_tema para re-colorir widgets com cores fixas
+_PALETA_ESCURA = {
+    "bg": DARK_BG, "darker": SIDEBAR_ITEM_HOV, "card": CARD_BG,
+    "border": CARD_BORDER, "sep": SEPARATOR, "txt": TEXT_PRIMARY,
+    "txt_muted": TEXT_MUTED, "hover_btn": SEPARATOR,
+}
+_PALETA_CLARA = {
+    "bg": "#f0f0f0", "darker": "#e0e0e0", "card": "#ffffff",
+    "border": "#cccccc", "sep": "#dddddd", "txt": "#1e1e1e",
+    "txt_muted": "#5a5a5a", "hover_btn": "#d0d0d0",
+}
+
+
+@lru_cache(maxsize=None)
+def _abrir_imagem(nome: str):
+    """Abre (uma só vez) uma imagem de IMAGES_DIR."""
+    from PIL import Image
+    return Image.open(os.path.join(IMAGES_DIR, nome))
+
+
+def _imagem_ctk(nome: str, altura: int) -> ctk.CTkImage:
+    """CTkImage de IMAGES_DIR redimensionada para a altura dada, mantendo a proporção."""
+    img = _abrir_imagem(nome)
+    largura = int(img.width * altura / img.height)
+    return ctk.CTkImage(light_image=img, dark_image=img, size=(largura, altura))
 
 
 class ChatbotGUI(ctk.CTk):
@@ -48,7 +95,6 @@ class ChatbotGUI(ctk.CTk):
 
         # ── Tema base ────────────────────────────────────────────────────────
         ctk.set_appearance_mode("dark")
-        ctk.set_default_color_theme("blue")
         self._tema_escuro = True
 
         # ── Janela ───────────────────────────────────────────────────────────
@@ -138,7 +184,7 @@ class ChatbotGUI(ctk.CTk):
     # ── Sidebar ─────────────────────────────────────────────────────────────
     def _build_sidebar(self):
         sidebar = ctk.CTkFrame(
-            self, width=210, fg_color=DARKER_BG, corner_radius=0)
+            self, width=200, fg_color=DARKER_BG, corner_radius=0)
         sidebar.grid(row=0, column=0, sticky="nsew")
         sidebar.grid_rowconfigure(10, weight=1)
         sidebar.grid_propagate(False)
@@ -150,13 +196,7 @@ class ChatbotGUI(ctk.CTk):
 
         # Imagem chatbot.png em vez de emoji
         try:
-            from PIL import Image as _PIL
-            _cb_path = os.path.join(IMAGES_DIR, "chatbot.png")
-            _cb_img = _PIL.open(_cb_path)
-            _ratio = 28 / _cb_img.height
-            _cb_ctk = ctk.CTkImage(
-                light_image=_cb_img, dark_image=_cb_img,
-                size=(int(_cb_img.width * _ratio), 28))
+            _cb_ctk = _imagem_ctk("chatbot.png", 28)
             ctk.CTkLabel(logo_frame, image=_cb_ctk, text="").pack(pady=(6, 0))
         except Exception:
             ctk.CTkLabel(logo_frame, text="🎙️",
@@ -170,25 +210,20 @@ class ChatbotGUI(ctk.CTk):
 
         # "by HCsoftware.png" por baixo do título
         try:
-            from PIL import Image as _PIL_hc
-            _hc_img = _PIL_hc.open(os.path.join(IMAGES_DIR, "HCsoftware.png"))
-            _ratio_hc = 14 / _hc_img.height
-            _hc_ctk = ctk.CTkImage(
-                light_image=_hc_img, dark_image=_hc_img,
-                size=(int(_hc_img.width * _ratio_hc), 14))
+            _hc_ctk = _imagem_ctk("HCsoftware.png", 22)
             brand_frame = ctk.CTkFrame(logo_frame, fg_color="transparent")
             brand_frame.pack(pady=(2, 5))
             ctk.CTkLabel(brand_frame, text="by ",
-                         font=ctk.CTkFont(size=9),
+                         font=ctk.CTkFont(size=11),
                          text_color=TEXT_MUTED).pack(side="left")
             ctk.CTkLabel(brand_frame, image=_hc_ctk, text="").pack(side="left")
         except Exception:
             ctk.CTkLabel(logo_frame, text="by HCsoftware",
                          font=ctk.CTkFont(family="BlackChancery", size=11),
-                         text_color="#A0522D").pack(pady=(2, 5))
+                         text_color=TEXT_MUTED).pack(pady=(2, 5))
 
         # Separador laranja
-        ctk.CTkFrame(sidebar, height=3, fg_color=ORANGE, corner_radius=0).pack(fill="x")
+        ctk.CTkFrame(sidebar, height=2, fg_color=SIDEBAR_ACTIVE_BG, corner_radius=0).pack(fill="x")
 
         # ── Secção VISTA (primeiro, como pedido) ─────────────────────────────
         self._sidebar_section(sidebar, "VISTA")
@@ -230,19 +265,14 @@ class ChatbotGUI(ctk.CTk):
         _brand_frame = ctk.CTkFrame(rodape, fg_color="transparent")
         _brand_frame.pack(expand=True)
         try:
-            from PIL import Image as _PIL_Image
-            _hc_img = _PIL_Image.open(os.path.join(IMAGES_DIR, "HCsoftware.png"))
-            _ratio = 20 / _hc_img.height
-            _hc_ctk = ctk.CTkImage(
-                light_image=_hc_img, dark_image=_hc_img,
-                size=(int(_hc_img.width * _ratio), 20))
+            _hc_ctk = _imagem_ctk("HCsoftware.png", 26)
             ctk.CTkLabel(_brand_frame, text="by ",
-                         font=ctk.CTkFont(size=10), text_color=TEXT_MUTED).pack(side="left")
+                         font=ctk.CTkFont(size=12), text_color=TEXT_MUTED).pack(side="left")
             ctk.CTkLabel(_brand_frame, image=_hc_ctk, text="").pack(side="left")
         except Exception:
             ctk.CTkLabel(_brand_frame, text="by HCsoftware",
                          font=ctk.CTkFont(family="BlackChancery", size=14),
-                         text_color="#A0522D").pack()
+                         text_color=TEXT_MUTED).pack()
 
         # ── Tooltips sidebar ─────────────────────────────────────────────────
         Tooltip(self.btn_voz,          "Ativar/desativar reconhecimento de voz")
@@ -257,32 +287,81 @@ class ChatbotGUI(ctk.CTk):
         Tooltip(self.btn_tema,         "Alternar entre tema escuro e claro")
 
     def _sidebar_section(self, parent, title: str):
-        """Cabeçalho de secção na sidebar."""
-        ctk.CTkLabel(
-            parent, text=title,
-            font=ctk.CTkFont(size=10, weight="bold"),
-            text_color=TEXT_MUTED, anchor="w"
-        ).pack(fill="x", padx=16, pady=(14, 2))
+        """Cabeçalho de secção na sidebar — estilo AluminioManager."""
+        # Linha divisória subtil antes de cada secção (excepto a primeira)
+        tk.Frame(parent, bg=SIDEBAR_DIVIDER, height=1).pack(fill="x", padx=0, pady=(8, 0))
+        tk.Label(
+            parent,
+            text=title.upper(),
+            bg=DARKER_BG,
+            fg=CARD_BORDER,
+            font=("Segoe UI", 7, "bold"),
+            anchor="w",
+        ).pack(fill="x", padx=14, pady=(5, 2))
 
     def _sidebar_btn(self, parent, text: str, cmd, color=None, accent=False):
-        """Botão de navegação da sidebar — estilo AluminioManager.
-        
-        Todos transparentes; só os marcados como accent ficam com cor de fundo.
-        """
-        btn = ctk.CTkButton(
+        """Botão de navegação da sidebar — estilo AluminioManager com hover dinâmico."""
+        bg  = SIDEBAR_ACTIVE_BG  if accent else DARKER_BG
+        fg  = SIDEBAR_ACTIVE_FG  if accent else SIDEBAR_ITEM_FG
+        hov = SIDEBAR_ACTIVE_HOV if accent else SIDEBAR_ITEM_HOV
+        fnt = SIDEBAR_FONT_ACTIVE if accent else SIDEBAR_FONT
+
+        btn = tk.Button(
             parent,
             text=text,
             command=cmd,
             anchor="w",
-            corner_radius=6,
-            height=34,
-            font=ctk.CTkFont(size=13),
-            fg_color=ORANGE if accent else "transparent",
-            hover_color=ORANGE_HOVER if accent else "#2a3a52",
-            text_color=TEXT_PRIMARY,
+            bd=0,
+            padx=16,
+            pady=9,
+            font=fnt,
+            bg=bg,
+            fg=fg,
+            activebackground=hov,
+            activeforeground=SIDEBAR_ACTIVE_FG,
+            relief="flat",
+            cursor="hand2",
+            highlightthickness=0,
         )
-        btn.pack(fill="x", padx=10, pady=2)
+        btn.pack(fill="x", padx=0, pady=0)
+
+        # Hover dinâmico
+        def _enter(e):
+            btn.config(bg=hov, fg=SIDEBAR_ACTIVE_FG)
+        def _leave(e):
+            # Só restaura se não for o botão activo
+            if not getattr(btn, "_active", False):
+                btn.config(bg=bg, fg=fg)
+
+        btn.bind("<Enter>", _enter)
+        btn.bind("<Leave>", _leave)
+        btn._active = accent  # marca estado inicial
+
         return btn
+
+    def _sidebar_set_active(self, active_btn):
+        """Marca um botão da sidebar como activo e os restantes como inactivos."""
+        all_btns = {
+            "voz":          self.btn_voz,
+            "parar":        self.btn_parar,
+            "sair":         self.btn_sair_sidebar,
+            "testar_voz":   self.btn_testar_voz,
+            "dispositivos": self.btn_dispositivos,
+            "config":       self.btn_config,
+            "ajuda":        self.btn_ajuda,
+            "limpar":       self.btn_limpar,
+            "silenciar":    self.btn_silenciar,
+            "tema":         self.btn_tema,
+        }
+        for key, btn in all_btns.items():
+            ativo = key == active_btn
+            btn.config(
+                bg=SIDEBAR_ACTIVE_BG if ativo else DARKER_BG,
+                fg=SIDEBAR_ACTIVE_FG if ativo else SIDEBAR_ITEM_FG,
+                activebackground=SIDEBAR_ACTIVE_HOV if ativo else SIDEBAR_ITEM_HOV,
+                font=SIDEBAR_FONT_ACTIVE if ativo else SIDEBAR_FONT,
+            )
+            btn._active = ativo
 
     # ── Área principal ───────────────────────────────────────────────────────
     def _build_main_area(self):
@@ -300,7 +379,7 @@ class ChatbotGUI(ctk.CTk):
         ctk.CTkLabel(
             header, text="💬  Chat",
             font=ctk.CTkFont(size=20, weight="bold"),
-            text_color="white"
+            text_color=AZUL_CLARO
         ).grid(row=0, column=0, padx=18, pady=14, sticky="w")
 
         # Status MQTT e Voz no cabeçalho (à direita)
@@ -310,14 +389,14 @@ class ChatbotGUI(ctk.CTk):
         self.mqtt_status = ctk.CTkLabel(
             status_frame, text="● MQTT",
             font=ctk.CTkFont(size=12, weight="bold"),
-            text_color="#b0bec5"
+            text_color=TEXT_MUTED
         )
         self.mqtt_status.pack(side="left", padx=(0, 14))
 
         self.voz_status = ctk.CTkLabel(
             status_frame, text="● Voz",
             font=ctk.CTkFont(size=12, weight="bold"),
-            text_color="#b0bec5"
+            text_color=TEXT_MUTED
         )
         self.voz_status.pack(side="left", padx=(0, 6))
 
@@ -527,9 +606,9 @@ class ChatbotGUI(ctk.CTk):
                 parar_tts()
             except Exception:
                 pass
-            self.btn_silenciar.configure(text="🔔  Com voz", fg_color="transparent")
+            self.btn_silenciar.config(text="🔔  Com voz", bg=DARKER_BG, fg=SIDEBAR_ITEM_FG)
         else:
-            self.btn_silenciar.configure(text="🔕  Sem voz", fg_color="transparent")
+            self.btn_silenciar.config(text="🔕  Sem voz", bg=DARKER_BG, fg=SIDEBAR_ITEM_FG)
 
     # ── Testar microfone ──────────────────────────────────────────────────────
     def testar_microfone(self):
@@ -551,12 +630,14 @@ class ChatbotGUI(ctk.CTk):
                 self.voice_thread.start()
                 time.sleep(0.5)
             self.voz_ativa = True
-            self.btn_voz.configure(text="🔊  FALAR", fg_color=ORANGE)
-            self.voz_status.configure(text="🟢 ATIVO", text_color="#4ade80")
+            self.btn_voz.config(text="🔊  FALAR")
+            self._sidebar_set_active("voz")
+            self.voz_status.configure(text="🟢 ATIVO", text_color=GREEN_LIGHT)
             set_active(True)
         else:
             self.voz_ativa = False
-            self.btn_voz.configure(text="🎤  Voz ON", fg_color=GREEN)
+            self.btn_voz.config(text="🎤  Voz ON")
+            self._sidebar_set_active(None)
             self.voz_status.configure(text="⚫ INATIVO", text_color=TEXT_MUTED)
             set_active(False)
 
@@ -585,9 +666,9 @@ class ChatbotGUI(ctk.CTk):
 
     def _atualizar_status_mqtt(self):
         if _mqtt_handler._connected:
-            self.mqtt_status.configure(text="🟢 MQTT", text_color="#4ade80")
+            self.mqtt_status.configure(text="🟢 MQTT", text_color=GREEN_LIGHT)
         else:
-            self.mqtt_status.configure(text="🔴 MQTT", text_color="#f87171")
+            self.mqtt_status.configure(text="🔴 MQTT", text_color=RED_LIGHT)
         self.after(3000, self._atualizar_status_mqtt)
 
     def mostrar_ajuda(self):
@@ -600,70 +681,34 @@ class ChatbotGUI(ctk.CTk):
 
         if self._tema_escuro:
             ctk.set_appearance_mode("dark")
-            bg        = "#1a2332"
-            darker    = "#141c28"
-            card      = "#1e2d40"
-            border    = "#243447"
-            sep       = "#2a3a52"
-            txt       = "#e8edf2"
-            txt_muted = "#8a9bb0"
-            hover_btn = "#2a3a52"
-            self.btn_tema.configure(text="☀️  Tema claro")
+            self.btn_tema.config(text="☀️  Tema claro")
         else:
             ctk.set_appearance_mode("light")
-            bg        = "#f0f4f8"
-            darker    = "#dce3ec"
-            card      = "#ffffff"
-            border    = "#c8d4de"
-            sep       = "#d0dae6"
-            txt       = "#1a2332"
-            txt_muted = "#5a6a7a"
-            hover_btn = "#d0dae6"
-            self.btn_tema.configure(text="🌙  Tema escuro")
+            self.btn_tema.config(text="🌙  Tema escuro")
+        nova = _PALETA_ESCURA if self._tema_escuro else _PALETA_CLARA
 
         # Re-colorir todos os frames/widgets com cores fixas
-        self.configure(fg_color=bg)
+        self.configure(fg_color=nova["bg"])
 
-        # Percorrer todos os widgets e actualizar os que têm fg_color definido
+        # Para cada propriedade: papéis da paleta cuja cor (escura ou clara) é substituída
+        papeis_por_prop = {
+            "fg_color":     ("bg", "darker", "card", "border", "sep"),
+            "hover_color":  ("hover_btn",),
+            "text_color":   ("txt", "txt_muted"),
+            "border_color": ("border",),
+        }
+
+        # Percorrer todos os widgets e actualizar os que têm cores da paleta
         def _recolor(widget):
-            try:
-                c = str(widget.cget("fg_color"))
-                if c in ("#1a2332", "#f0f4f8"):
-                    widget.configure(fg_color=bg)
-                elif c in ("#141c28", "#dce3ec"):
-                    widget.configure(fg_color=darker)
-                elif c in ("#1e2d40", "#ffffff"):
-                    widget.configure(fg_color=card)
-                elif c in ("#243447", "#c8d4de"):
-                    widget.configure(fg_color=border)
-                elif c in ("#2a3a52", "#d0dae6"):
-                    widget.configure(fg_color=sep)
-                elif c == "transparent":
-                    pass  # manter transparente
-            except Exception:
-                pass
-            try:
-                c = str(widget.cget("hover_color"))
-                if c in ("#2a3a52", "#d0dae6"):
-                    widget.configure(hover_color=sep)
-                elif c in ("#3a4a62", "#c0cdd8"):
-                    widget.configure(hover_color="#3a4a62" if self._tema_escuro else "#c0cdd8")
-            except Exception:
-                pass
-            try:
-                c = str(widget.cget("text_color"))
-                if c in ("#e8edf2", "#1a2332"):
-                    widget.configure(text_color=txt)
-                elif c in ("#8a9bb0", "#5a6a7a"):
-                    widget.configure(text_color=txt_muted)
-            except Exception:
-                pass
-            try:
-                c = str(widget.cget("border_color"))
-                if c in ("#243447", "#c8d4de"):
-                    widget.configure(border_color=border)
-            except Exception:
-                pass
+            for prop, papeis in papeis_por_prop.items():
+                try:
+                    c = str(widget.cget(prop))
+                    for papel in papeis:
+                        if c in (_PALETA_ESCURA[papel], _PALETA_CLARA[papel]):
+                            widget.configure(**{prop: nova[papel]})
+                            break
+                except Exception:
+                    pass
             for child in widget.winfo_children():
                 _recolor(child)
 

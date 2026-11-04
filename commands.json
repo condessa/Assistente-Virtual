@@ -77,7 +77,7 @@
             "descricao": "desligar <dispositivo>"
         },
         "alternar": {
-            "padroes": ["alternar", "toggle", "inverter", "mudar estado"],
+            "padroes": ["alternar", "toggle", "inverter", "muda o estado de", "muda o estado da", "mudar estado"],
             "parametro": true,
             "acao_mqtt": "TOGGLE",
             "descricao": "alternar <dispositivo>"
@@ -90,12 +90,12 @@
     },
     "utilitarios": {
         "horas": {
-            "padroes": ["que horas sao", "que horas são", "horas", "hora atual", "que horas", "diz as horas"],
+            "padroes": ["que horas sao", "que horas são", "horas", "hora atual", "hora actual",  "que horas", "diz as horas"],
             "parametro": false,
             "descricao": "que horas são"
         },
         "data": {
-            "padroes": ["que dia e hoje", "que dia é hoje", "data", "data atual", "que dia"],
+            "padroes": ["que dia e hoje", "que dia é hoje", "data", "data atual", "data actual", "que dia"],
             "parametro": false,
             "descricao": "que dia é hoje"
         },
