@@ -54,14 +54,16 @@ hiddenimports = [
     "devices_window",
 ]
 # O yt-dlp carrega os extractores por import dinâmico.
+# Nota: nada de emojis nem acentos nestas mensagens — o spec corre com a
+# codepage cp1252 no Windows e um print() rebenta o build.
 _modulos_ytdlp = collect_submodules("yt_dlp")
 if not _modulos_ytdlp:
     raise SystemExit(
-        "yt-dlp não está instalado no ambiente de build — sem ele a música não "
+        "yt-dlp nao esta instalado no ambiente de build - sem ele a musica nao "
         "funcionaria no .exe. Corre: pip install -r requirements.txt"
     )
 hiddenimports += _modulos_ytdlp
-print(f"ℹ️  yt-dlp: {len(_modulos_ytdlp)} módulos incluídos")
+print("[build] yt-dlp: %d modulos incluidas" % len(_modulos_ytdlp))
 
 a = Analysis(
     ["main.py"],
