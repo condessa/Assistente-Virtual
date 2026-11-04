@@ -99,6 +99,13 @@ jobs:
       - name: Obter código
         uses: actions/checkout@v4
 
+      # Python 3.12: é a versão com wheels prontos para pygame/pyaudio;
+      # sem isto o pygame tenta compilar do código-fonte e falha (sdl-config).
+      - name: Instalar Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
       - name: Instalar ferramentas
         run: |
           sudo apt-get update
