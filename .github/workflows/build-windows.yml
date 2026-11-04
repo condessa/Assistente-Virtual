@@ -102,16 +102,26 @@ jobs:
       - name: Instalar ferramentas
         run: |
           sudo apt-get update
-          sudo apt-get install -y dpkg-dev python3-pip
+          sudo apt-get install -y dpkg-dev python3-pip python3-dev \
+            build-essential portaudio19-dev
 
       - name: Compilar o .deb
         run: bash criar_deb_v2.sh
 
       - name: Verificar o pacote
         run: |
-          ls -lh dist/*.deb
-          dpkg-deb -I dist/*.deb
-          dpkg-deb -c dist/*.deb | head -20
+          DEB=$(ls -t dist/assistente-virtual_*.deb | head -1)
+          echo "A verificar $DEB"
+          ls -lh "$DEB"
+          dpkg-deb -I "$DEB"
+          dpkg-deb -c "$DEB" | grep -E "hc_theme.json|deps/(customtkinter|pygame|yt_dlp)/" | head
+          TAMANHO=$(stat -c%s "$DEB")
+          MB=$((TAMANHO / 1024 / 1024))
+          echo "Tamanho: ${MB} MB"
+          if [ "$MB" -lt 40 ]; then
+            echo "::error::Pacote suspeito: ${MB} MB (faltam as dependências?)"
+            exit 1
+          fi
 
       - name: Guardar o .deb como artefacto
         uses: actions/upload-artifact@v4

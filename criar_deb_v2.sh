@@ -133,7 +133,8 @@ echo "📦 A instalar dependências Python no pacote..."
 DEPS_DIR="$INSTALL_DIR/deps"
 mkdir -p "$DEPS_DIR"
 
-# Dependências gerais (falhas aqui não param o build, como antes)
+# Dependências gerais. Se esta instalação falhar, o pacote sai sem as
+# bibliotecas gráficas e não abre — por isso a falha agora para o build.
 pip3 install --quiet --target="$DEPS_DIR" \
     customtkinter \
     pygame \
@@ -143,8 +144,20 @@ pip3 install --quiet --target="$DEPS_DIR" \
     pydub \
     pillow \
     mutagen \
-    pyaudio \
-    tinytuya 2>/dev/null || true
+    tinytuya
+
+# pyaudio é opcional aqui: o pacote já depende de python3-pyaudio (apt).
+# Só entra se houver cabeçalhos portaudio na máquina de build.
+pip3 install --quiet --target="$DEPS_DIR" pyaudio 2>/dev/null || true
+
+# Rede de segurança: sem estas pastas o programa não arranca.
+for dep in customtkinter pygame paho gtts mutagen pydub; do
+    if [ ! -d "$DEPS_DIR/$dep" ]; then
+        echo -e "  ${RED}❌ Dependência em falta no pacote: $dep${NC}"
+        exit 1
+    fi
+done
+echo "  ✅ Dependências essenciais presentes"
 
 # yt-dlp: sempre a versão mais recente, com yt-dlp-ejs ([default]).
 # SEM "|| true": se falhar, o build pára em vez de gerar um pacote que não descarrega.
