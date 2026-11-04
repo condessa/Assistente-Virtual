@@ -54,7 +54,14 @@ hiddenimports = [
     "devices_window",
 ]
 # O yt-dlp carrega os extractores por import dinâmico.
-hiddenimports += collect_submodules("yt_dlp")
+_modulos_ytdlp = collect_submodules("yt_dlp")
+if not _modulos_ytdlp:
+    raise SystemExit(
+        "yt-dlp não está instalado no ambiente de build — sem ele a música não "
+        "funcionaria no .exe. Corre: pip install -r requirements.txt"
+    )
+hiddenimports += _modulos_ytdlp
+print(f"ℹ️  yt-dlp: {len(_modulos_ytdlp)} módulos incluídos")
 
 a = Analysis(
     ["main.py"],

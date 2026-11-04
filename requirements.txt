@@ -12,6 +12,7 @@ pydub>=0.25.1
 mutagen>=1.47.0
 requests>=2.31.0
 tinytuya
+yt-dlp>=2024.1.1
 
-# Nota: yt-dlp e ffmpeg são geridos internamente pela aplicação.
-# Em Debian, instalar ffmpeg via: sudo apt install ffmpeg
+# Nota: o ffmpeg é embutido no .exe do Windows; em Debian,
+# instalar com: sudo apt install ffmpeg
