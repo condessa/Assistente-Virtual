@@ -23,11 +23,11 @@
 set -e
 
 NOME="assistente-virtual"
-VERSAO="2.0.2"
+VERSAO="2.1.0"
 ARCH="all"
 MAINTAINER="HCsoftware <herculano@hcsoftware.pt>"
 DESCRICAO="Assistente Virtual HCsoftware — Controlo por voz, música e IoT"
-DIR_PROJETO="$HOME/Programas/Assistente Virtual"
+DIR_PROJETO="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 DIR_BUILD="/tmp/${NOME}_${VERSAO}"
 DIR_DIST="$DIR_PROJETO/dist"
 DEB_FILE="${DIR_DIST}/${NOME}_${VERSAO}_${ARCH}.deb"
@@ -98,6 +98,7 @@ FICHEIROS_PY=(
     "constants.py"
     "tooltip.py"
     "commands.json"
+    "hc_theme.json"
     "ollama_client.py"
     "tuya_client.py"
     "dispositivos.json"
@@ -213,7 +214,7 @@ fi
 
 cat > "$DESKTOP_DIR/assistente-virtual.desktop" << DESKTOP
 [Desktop Entry]
-Version=2.0.0
+Version=2.1.0
 Type=Application
 Name=Assistente Virtual
 Name[pt]=Assistente Virtual

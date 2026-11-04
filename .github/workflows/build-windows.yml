@@ -91,3 +91,39 @@ jobs:
 
             Descarrega o ficheiro e faz duplo clique. O Windows vai avisar que não é assinado:
             «Mais informações» → «Executar mesmo assim».
+
+  debian:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Obter código
+        uses: actions/checkout@v4
+
+      - name: Instalar ferramentas
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y dpkg-dev python3-pip
+
+      - name: Compilar o .deb
+        run: bash criar_deb_v2.sh
+
+      - name: Verificar o pacote
+        run: |
+          ls -lh dist/*.deb
+          dpkg-deb -I dist/*.deb
+          dpkg-deb -c dist/*.deb | head -20
+
+      - name: Guardar o .deb como artefacto
+        uses: actions/upload-artifact@v4
+        with:
+          name: AssistenteVirtual-debian
+          path: dist/*.deb
+          if-no-files-found: error
+          retention-days: 30
+
+      - name: Publicar na release (tags v*)
+        if: startsWith(github.ref, 'refs/tags/v')
+        uses: softprops/action-gh-release@v2
+        with:
+          name: Assistente Virtual ${{ github.ref_name }}
+          files: dist/*.deb
