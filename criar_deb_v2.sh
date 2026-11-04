@@ -23,7 +23,7 @@
 set -e
 
 NOME="assistente-virtual"
-VERSAO="2.1.0"
+VERSAO="2.1.2"
 ARCH="all"
 MAINTAINER="HCsoftware <herculano@hcsoftware.pt>"
 DESCRICAO="Assistente Virtual HCsoftware — Controlo por voz, música e IoT"
@@ -227,7 +227,7 @@ fi
 
 cat > "$DESKTOP_DIR/assistente-virtual.desktop" << DESKTOP
 [Desktop Entry]
-Version=2.1.0
+Version=2.1.2
 Type=Application
 Name=Assistente Virtual
 Name[pt]=Assistente Virtual
